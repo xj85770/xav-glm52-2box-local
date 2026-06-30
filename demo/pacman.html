@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pac-Man</title>
+<style>
+  html,body{margin:0;height:100%;display:flex;justify-content:center;align-items:center;background:#0a0a3a;font-family:monospace}
+  #wrap{position:relative}
+  canvas{display:block;background:#000;border:3px solid #0033cc;box-shadow:0 0 30px rgba(0,0,200,0.5)}
+  .overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#FFD700;text-align:center;background:rgba(0,0,0,0.75);padding:20px}
+  .title{font-size:48px;letter-spacing:8px;margin:0;color:#FFD700;text-shadow:0 0 20px #FFD700,4px 4px 0 #a00}
+  .sub{font-size:14px;color:#fff;margin:12px 0 24px;letter-spacing:2px}
+  .btn{margin-top:12px;padding:12px 28px;background:#FFD700;color:#000;font:inherit;font-size:18px;border:none;border-radius:4px;cursor:pointer;letter-spacing:2px}
+  .btn:hover{background:#fff}
+  .hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);color:#666;font-size:11px}
+  .score{position:absolute;top:8px;left:50%;transform:translateX(-50%);color:#FFD700;font-size:18px;letter-spacing:2px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="528" height="536"></canvas>
+  <div id="score" class="score">Score: 0</div>
+  <div id="overlay" class="overlay">
+    <h1 class="title">PAC-MAN</h1>
+    <div class="sub">Arrow keys to move. Eat all pellets. Avoid the ghosts.</div>
+    <button class="btn" id="startBtn">START</button>
+  </div>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 528, H = 536, CELL = 24, COLS = 22, ROWS = 22;
+const scoreEl = document.getElementById('score');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const MAZE = [
+  "####################  ",
+  "#        #         #  ",
+  "# ####   # ####### #  ",
+  "# #  #   # #     # #  ",
+  "# ####   # ##### # #  ",
+  "#        #       # #  ",
+  "###################  ",
+  "#         # # # # #   ",
+  "# ####### # # # # #   ",
+  "# #     # # # # # #   ",
+  "# ##### # # # # # #   ",
+  "# #     # # # # # #   ",
+  "# ######### # # # #   ",
+  "#           #   # #   ",
+  "#####################",
+];
+
+const maze = MAZE.map(r => r.split('').map(c => c === '#' ? 1 : (c === ' ' ? 0 : 1)));
+let pac = {x:1, y:1, dx:0, dy:0, mouth:0, alive:true};
+let ghosts = [
+  {x:11, y:7, dx:1, dy:0, color:'#ff0000', speed:0.08, frac:0},
+  {x:9, y:13, dx:-1, dy:0, color:'#ff7777', speed:0.07, frac:0},
+];
+let pellets = [], score = 0, gameOver = false, won = false, started = false, lastTime = 0, animTime = 0;
+
+function init() {
+  pellets = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (maze[r] && maze[r][c] === 0) pellets.push({x:c, y:r, eaten:false});
+    }
+  }
+  pac = {x:1, y:1, dx:0, dy:0, mouth:0, alive:true};
+  ghosts = [
+    {x:11, y:7, dx:1, dy:0, color:'#ff0000', speed:0.08, frac:0},
+    {x:9, y:13, dx:-1, dy:0, color:'#ff7777', speed:0.07, frac:0},
+  ];
+  score = 0; gameOver = false; won = false;
+  scoreEl.textContent = 'Score: 0';
+}
+
+function isWall(x, y) {
+  if (y < 0 || y >= ROWS) return true;
+  if (x < 0 || x >= COLS) return true;
+  return maze[y][x] === 1;
+}
+
+function canMove(x, y, dx, dy) {
+  if (dx === 0 && dy === 0) return false;
+  return !isWall(x + dx, y + dy);
+}
+
+function movePac() {
+  if (!pac.alive) return;
+  if (pac.dx !== 0 || pac.dy !== 0) {
+    const nx = pac.x + pac.dx, ny = pac.y + pac.dy;
+    if (!isWall(nx, ny)) { pac.x = nx; pac.y = ny; }
+    else { pac.dx = 0; pac.dy = 0; }
+  }
+  pac.mouth += 0.25;
+}
+
+function moveGhost(g) {
+  if (!pac.alive) return;
+  const opts = [[1,0],[-1,0],[0,1],[0,-1]];
+  const valid = opts.filter(([dx,dy]) => !isWall(g.x+dx, g.y+dy));
+  if (valid.length === 0) return;
+  let best = valid[0];
+  let bestDist = Infinity;
+  for (const [dx,dy] of valid) {
+    const d = Math.hypot(g.x+dx-pac.x, g.y+dy-pac.y);
+    if (d < bestDist) { bestDist = d; best = [dx,dy]; }
+  }
+  // 15% random
+  if (Math.random() < 0.15) best = valid[Math.floor(Math.random()*valid.length)];
+  g.x += best[0]; g.y += best[1];
+  g.dx = best[0]; g.dy = best[1];
+}
+
+function checkCollisions() {
+  for (const g of ghosts) {
+    if (g.x === pac.x && g.y === pac.y && pac.alive) {
+      pac.alive = false;
+      gameOver = true;
+      showOverlay('GAME OVER', 'You were caught by the ghosts.');
+    }
+  }
+}
+
+function showOverlay(title, sub, btnText='START') {
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `
+    <h1 class="title">${title}</h1>
+    <div class="sub">${sub}</div>
+    <button class="btn" id="startBtn">${btnText}</button>
+  `;
+  document.getElementById('startBtn').onclick = startGame;
+}
+
+function startGame() {
+  init();
+  overlay.style.display = 'none';
+  started = true;
+  lastTime = performance.now();
+}
+
+function gameLoop(time) {
+  if (started && !gameOver && !won) {
+    const dt = time - lastTime;
+    lastTime = time;
+    animTime += dt;
+    if (animTime > 120) {
+      animTime = 0;
+      movePac();
+      ghosts.forEach(g => {
+        g.frac += g.speed * 20;
+        if (g.frac >= 1) { g.frac = 0; moveGhost(g); }
+      });
+      checkCollisions();
+      for (const p of pellets) {
+        if (!p.eaten && p.x === pac.x && p.y === pac.y) {
+          p.eaten = true;
+          score += 10;
+          scoreEl.textContent = 'Score: ' + score;
+        }
+      }
+      if (pellets.every(p => p.eaten)) {
+        won = true;
+        showOverlay('YOU WIN', `Score: ${score}`, 'PLAY AGAIN');
+      }
+    }
+  }
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function draw() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  // Draw maze walls
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (maze[r] && maze[r][c] === 1) {
+        ctx.fillStyle = '#0033cc';
+        ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
+        ctx.fillStyle = '#1a1aff';
+        ctx.fillRect(c*CELL+2, r*CELL+2, CELL-4, CELL-4);
+      }
+    }
+  }
+  // Pellets
+  ctx.fillStyle = '#FFD700';
+  for (const p of pellets) {
+    if (!p.eaten) {
+      ctx.beginPath();
+      ctx.arc(p.x*CELL + CELL/2, p.y*CELL + CELL/2, 3, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+  // Pac-Man
+  if (pac.alive) {
+    let rot = 0;
+    if (pac.dx < 0) rot = Math.PI;
+    else if (pac.dy < 0) rot = -Math.PI/2;
+    else if (pac.dy > 0) rot = Math.PI/2;
+    const cx = pac.x*CELL + CELL/2;
+    const cy = pac.y*CELL + CELL/2;
+    const mouth = Math.abs(Math.sin(pac.mouth)) * 0.4 + 0.05;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(0, 0, CELL/2 - 2, mouth, Math.PI*2 - mouth);
+    ctx.lineTo(0, 0);
+    ctx.fill();
+    ctx.restore();
+  }
+  // Ghosts
+  ghosts.forEach(g => {
+    const cx = g.x*CELL + CELL/2;
+    const cy = g.y*CELL + CELL/2;
+    ctx.fillStyle = g.color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, CELL/2 - 2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(cx - 4, cy - 2, 3, 0, Math.PI*2);
+    ctx.arc(cx + 4, cy - 2, 3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(cx - 4 + g.dx, cy - 2, 1.5, 0, Math.PI*2);
+    ctx.arc(cx + 4 + g.dx, cy - 2, 1.5, 0, Math.PI*2);
+    ctx.fill();
+  });
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!started) return;
+  if (e.key === 'ArrowLeft') { pac.dx = -1; pac.dy = 0; }
+  else if (e.key === 'ArrowRight') { pac.dx = 1; pac.dy = 0; }
+  else if (e.key === 'ArrowUp') { pac.dx = 0; pac.dy = -1; }
+  else if (e.key === 'ArrowDown') { pac.dx = 0; pac.dy = 1; }
+  e.preventDefault();
+});
+
+document.getElementById('startBtn').onclick = startGame;
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

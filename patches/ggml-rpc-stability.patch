@@ -1,0 +1,207 @@
+diff --git a/ggml/src/ggml-rpc/ggml-rpc.cpp b/ggml/src/ggml-rpc/ggml-rpc.cpp
+index d380577..a837fb8 100644
+--- a/ggml/src/ggml-rpc/ggml-rpc.cpp
++++ b/ggml/src/ggml-rpc/ggml-rpc.cpp
+@@ -654,19 +654,48 @@ static void ggml_backend_rpc_synchronize(ggml_backend_t backend) {
+     // this is no-op because we don't have any async operations
+ }
+ 
+-static void add_tensor(ggml_tensor * tensor, std::vector<rpc_tensor> & tensors, std::unordered_set<ggml_tensor*> & visited) {
+-    if (tensor == nullptr) {
+-        return;
+-    }
+-    if (visited.find(tensor) != visited.end()) {
++// NOTE: iterative (explicit-stack) rewrite of the original recursive add_tensor.
++// Deep MoE graphs (e.g. GLM-5.2, 158 layers) overflow the ~512 KiB macOS thread
++// stack when this is recursive. The traversal covers src[] + view_src and emits
++// children before parents for normal graph serialization; functionally equivalent
++// for reachable materialization, not bit-exact internal ordering. See
++// ggml-rpc-stability.patch.
++static void add_tensor(ggml_tensor * root, std::vector<rpc_tensor> & tensors, std::unordered_set<ggml_tensor*> & visited) {
++    if (root == nullptr) {
+         return;
+     }
+-    visited.insert(tensor);
+-    for (int i = 0; i < GGML_MAX_SRC; i++) {
+-        add_tensor(tensor->src[i], tensors, visited);
++    // frame: a tensor plus how many of its children we have already pushed
++    struct frame { ggml_tensor * tensor; int child; };
++    std::vector<frame> stack;
++    stack.push_back({root, 0});
++    while (!stack.empty()) {
++        frame & f = stack.back();
++        ggml_tensor * tensor = f.tensor;
++        if (f.child == 0) {
++            // first time we reach this frame
++            if (tensor == nullptr || visited.find(tensor) != visited.end()) {
++                stack.pop_back();
++                continue;
++            }
++            visited.insert(tensor);
++        }
++        // children are src[0..GGML_MAX_SRC-1] then view_src (index GGML_MAX_SRC)
++        bool descended = false;
++        while (f.child < GGML_MAX_SRC + 1) {
++            int idx = f.child++;
++            ggml_tensor * next = (idx < GGML_MAX_SRC) ? tensor->src[idx] : tensor->view_src;
++            if (next != nullptr && visited.find(next) == visited.end()) {
++                stack.push_back({next, 0});
++                descended = true;
++                break;
++            }
++        }
++        if (descended) {
++            continue;
++        }
++        // all children processed -> emit this node (post-order), then pop
++        tensors.push_back(serialize_tensor(tensor));
++        stack.pop_back();
+     }
+-    add_tensor(tensor->view_src, tensors, visited);
+-    tensors.push_back(serialize_tensor(tensor));
+ }
+ 
+ static void serialize_graph(uint32_t device, const ggml_cgraph * cgraph, std::vector<uint8_t> & output) {
+@@ -1264,60 +1293,101 @@ bool rpc_server::copy_tensor(const rpc_msg_copy_tensor_req & request, rpc_msg_co
+     return true;
+ }
+ 
++// NOTE: iterative (explicit-stack) rewrite of the original recursive create_node.
++// Deep MoE graphs (e.g. GLM-5.2, 158 layers) overflow the ~512 KiB macOS thread
++// stack when this is recursive, which on the worker side closes the RPC socket
++// silently and aborts the coordinator at the ggml-rpc.cpp set_tensor/get_alloc path.
++// Two phases preserve the intended reachable-node materialization and wiring for
++// normal graph deserialization (functionally equivalent, not bit-exact internal
++// ordering):
++//   phase 1: materialize every reachable id into tensor_map via deserialize_tensor
++//            (a node is inserted into the map before its children are visited, so
++//             shared/cyclic references resolve to the same object as before);
++//   phase 2: wire src[]/view_src pointers and view_offs, with the same error
++//            propagation (a non-zero id that fails to materialize -> failure).
++// See ggml-rpc-stability.patch.
+ ggml_tensor * rpc_server::create_node(uint64_t id,
+                                       struct ggml_context * ctx,
+                                       const std::unordered_map<uint64_t, const rpc_tensor*> & tensor_ptrs,
+                                       std::unordered_map<uint64_t, struct ggml_tensor*> & tensor_map) {
++    if (id == 0) {
++        return nullptr;
++    }
+     if (tensor_map.find(id) != tensor_map.end()) {
+         return tensor_map[id];
+     }
+-    // Safely find the tensor pointer
+-    auto it_ptr = tensor_ptrs.find(id);
+-    if (it_ptr == tensor_ptrs.end()) {
+-        return nullptr;
+-    }
+-    const rpc_tensor * tensor = it_ptr->second;
+ 
+-    struct ggml_tensor * result = deserialize_tensor(ctx, tensor);
+-    if (result == nullptr) {
+-        return nullptr;
+-    }
+-    if (result->buffer == nullptr && result->data != nullptr) {
+-        GGML_LOG_ERROR("[%s] invalid data ptr", __func__);
+-        return nullptr;
++    // ---- phase 1: materialize all reachable nodes (DFS by id, no recursion) ----
++    std::vector<uint64_t> to_visit;
++    to_visit.push_back(id);
++    while (!to_visit.empty()) {
++        uint64_t cur = to_visit.back();
++        to_visit.pop_back();
++        if (cur == 0 || tensor_map.find(cur) != tensor_map.end()) {
++            continue;
++        }
++        auto it_ptr = tensor_ptrs.find(cur);
++        if (it_ptr == tensor_ptrs.end()) {
++            // unknown id: mirror the recursive version's "missing src" failure by
++            // leaving it absent from the map; phase 2 detects and propagates it.
++            continue;
++        }
++        const rpc_tensor * tensor = it_ptr->second;
++        struct ggml_tensor * result = deserialize_tensor(ctx, tensor);
++        if (result == nullptr) {
++            return nullptr;
++        }
++        if (result->buffer == nullptr && result->data != nullptr) {
++            GGML_LOG_ERROR("[%s] invalid data ptr", __func__);
++            return nullptr;
++        }
++        tensor_map[cur] = result;
++        for (int i = 0; i < GGML_MAX_SRC; i++) {
++            if (tensor->src[i] != 0) {
++                to_visit.push_back(tensor->src[i]);
++            }
++        }
++        if (tensor->view_src != 0) {
++            to_visit.push_back(tensor->view_src);
++        }
+     }
+-    tensor_map[id] = result;
+-    for (int i = 0; i < GGML_MAX_SRC; i++) {
+-        // Check if the source ID is 0 before calling create_node recursively
+-        if (tensor->src[i] == 0) {
+-            result->src[i] = nullptr;
++
++    // ---- phase 2: wire up pointers for every node we materialized ----
++    for (auto & kv : tensor_map) {
++        uint64_t cur = kv.first;
++        struct ggml_tensor * result = kv.second;
++        auto it_ptr = tensor_ptrs.find(cur);
++        if (it_ptr == tensor_ptrs.end()) {
++            continue;
++        }
++        const rpc_tensor * tensor = it_ptr->second;
++        for (int i = 0; i < GGML_MAX_SRC; i++) {
++            if (tensor->src[i] == 0) {
++                result->src[i] = nullptr;
++            } else {
++                auto it = tensor_map.find(tensor->src[i]);
++                if (it == tensor_map.end()) {
++                    GGML_LOG_ERROR("[%s] failed to create source node %d (src_id=%" PRIu64 ") for node id %" PRIu64 "\n",
++                                   __func__, i, tensor->src[i], cur);
++                    return nullptr;
++                }
++                result->src[i] = it->second;
++            }
++        }
++        if (tensor->view_src == 0) {
++            result->view_src = nullptr;
+         } else {
+-            result->src[i] = create_node(tensor->src[i], ctx, tensor_ptrs, tensor_map);
+-            // If the recursive call failed for a non-zero ID, propagate the error
+-            if (result->src[i] == nullptr) {
+-                GGML_LOG_ERROR("[%s] failed to create source node %d (src_id=%" PRIu64 ") for node id %" PRIu64 "\n",
+-                               __func__, i, tensor->src[i], id);
+-                // Must return nullptr to signal failure up the call stack
++            auto it = tensor_map.find(tensor->view_src);
++            if (it == tensor_map.end()) {
++                GGML_LOG_ERROR("[%s] failed to create view_src node (view_src_id=%" PRIu64 ") for node id %" PRIu64 "\n",
++                               __func__, tensor->view_src, cur);
+                 return nullptr;
+             }
++            result->view_src = it->second;
+         }
++        result->view_offs = tensor->view_offs;
+     }
+ 
+-    // Handle view_src similarly
+-    if (tensor->view_src == 0) {
+-        result->view_src = nullptr;
+-    } else {
+-        result->view_src = create_node(tensor->view_src, ctx, tensor_ptrs, tensor_map);
+-        // If the recursive call failed for a non-zero ID, propagate the error
+-        if (result->view_src == nullptr) {
+-            GGML_LOG_ERROR("[%s] failed to create view_src node (view_src_id=%" PRIu64 ") for node id %" PRIu64 "\n",
+-                           __func__, tensor->view_src, id);
+-            // Must return nullptr to signal failure up the call stack
+-            return nullptr;
+-        }
+-    }
+-    result->view_offs = tensor->view_offs;
+-    return result;
++    auto it = tensor_map.find(id);
++    return it == tensor_map.end() ? nullptr : it->second;
+ }
+ 
+ bool rpc_server::graph_compute(const std::vector<uint8_t> & input) {
