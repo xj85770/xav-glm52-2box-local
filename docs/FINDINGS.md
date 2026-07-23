@@ -25,10 +25,10 @@ fully reside** here. DwarfStar also **rejects routed Q4 for tensor-parallel**. A
 | Lexar NM790 4 TB in an external enclosure | Capacity disk; fine for holding weights, weaker for hot expert streaming |
 | Thunderbolt 5 cable between Macs | Required for any 2-box decode that hopes to beat streaming |
 
-“64×64” in this note means the practical DwarfStar SSD-streaming knobs people land on for a
-128 GB M5 Max: around a **64 GB routed-expert cache** (docs recommend starting ~48–64 GB;
-auto often picks ~59 GB for PRO-class streaming). Same idea applies per Mac if you run
-streaming on each node independently.
+“64×64 on each one” in this note means the intentional **SSD expert-streaming** setup on
+**each** M5 Max: the practical DwarfStar knobs people land on around **`--ssd-streaming-cache-experts 64GB`**
+(and/or **`--ssd-streaming-full-layers`** derived from that budget — docs recommend starting
+~48–64 GB). Same streaming recipe on both boxes. That is **not** full model residency.
 
 ---
 
@@ -154,6 +154,58 @@ Pick one capacity upgrade (quant stays Q4):
 
 Until one of those is true, treat “~10 tok/s on Q4” as a **hardware purchase target**, not a
 config flag.
+
+---
+
+## “64×64 on each Mac” — streaming experts on purpose
+
+Yes: the working design is **not** “fit all Q4 weights in RAM.” It is:
+
+- dense / shared / attention resident where possible
+- **routed experts streamed from SSD** into a ~**64 GB** (per Mac) dynamic cache
+- optionally a **full-layer prefix** kept resident from the same budget
+- and you run that recipe **on each** of the two M5 Maxes
+
+That is exactly DwarfStar’s SSD-streaming mode. It does **not** change the decode ceiling
+the way people hope when they hear “two machines × 64 GB.”
+
+### What 64 GB of expert cache actually buys (Q4)
+
+Rough Q4 arithmetic (~434 GB antirez Q4_K, ~78 MoE layers × 256 experts):
+
+| Budget on one 128 GB Mac | About what it holds |
+|---|---|
+| **64 GB dynamic expert cache** | ~3k experts ≈ **~17%** of all routed experts |
+| **64 full MoE layers** (if taken literally) | ~**300 GB+** — **does not fit**; ds4 will cap full-layers from the byte budget |
+| 64 GB as full-layer budget | only ~**13** full layers resident, rest still stream |
+
+So “64×64” is a **large cache relative to RAM**, not a large cache relative to the **Q4 expert
+set**. Most experts still live on disk. Every decode token that misses still pays NVMe.
+
+### Why “on each one” does not 2× the tok/s
+
+Decode is **one token at a time**:
+
+| How the two Macs are used | What happens to tok/s |
+|---|---|
+| Two independent streaming sessions (64 GB cache each) | Two chats at ~3 tok/s each — **not** one chat at 6–10 |
+| One decode, layer-split across both, each side still SSD-streaming its experts | Still **disk-bound on every hop**; extra Mac adds sync cost, does not remove expert I/O |
+| One decode, experts **fully resident** (needs ~512 GB pooled for Q4) | Leaves the streaming regime — this is the ~10+ path |
+
+Two × 64 GB caches are **not** one 128 GB shared expert working set for a single token.
+Each process only sees its own cache. Misses still read the Lexar/internal SSD.
+
+### So does streaming-with-64×64 get you to 10?
+
+**No.** It is the mechanism that *produces* ~3 tok/s on Q4. Tuning 64→75 GB or mirroring
+the same flags on the second Mac stays inside the streaming band (maybe ~4–5 if the hot
+GGUF is on internal SSD and the cache stays lockable). **~10 tok/s on Q4 still requires
+enough pooled RAM to stop streaming experts every token** (~512 GB class), as in the
+section above.
+
+---
+
+## What antirez already measured (same machine class, **IQ2_XXS**)
 
 From the DwarfStar README, GLM 5.2 **IQ2_XXS** (~188 GiB) on **two M5 Max 128 GB MacBooks**:
 
