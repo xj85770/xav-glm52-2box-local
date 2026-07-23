@@ -6,13 +6,13 @@ This note answers the practical question behind this repo:
 > cache per M5 Mac**, seeing about **~3 tok/s**. Can we get to **~10+ tok/s**? What does
 > the physics allow?
 
-Short answer: **~10 tok/s is real on this hardware — but not while staying on Q4.**
+Short answer: **If Q4 is non-negotiable, ~10 tok/s is not available on 2×128 GB.**
 
-At ~3 tok/s you are disk-bound. Crossing ~10 requires making routed experts **memory-resident
-across both Macs**. Antirez’s published **~16.8 tok/s** is **IQ2_XXS (~188–211 GB)**, not Q4.
-Your Q4 GGUF is ~434–467 GB: it **cannot fully reside in 2×128 GB (256 GB pooled)**, and
-DwarfStar currently **rejects routed Q4 for tensor-parallel**. So Q4 on this box class is
-stuck in the streaming band unless you drop quant (or buy more RAM).
+At ~3 tok/s you are disk-bound. Crossing ~10 requires making routed experts **memory-resident**.
+A Q4 GLM GGUF is **~406–467 GB**. Two 128 GB Macs only pool **256 GB**, so Q4 **cannot
+fully reside** here. DwarfStar also **rejects routed Q4 for tensor-parallel**. Antirez’s
+**~16.8 tok/s** is **IQ2_XXS**, not Q4. Keeping Q4 means either **more pooled unified memory**
+(the real path to ~10+) or accepting the **streaming band (~few tok/s)** and squeezing it.
 
 ---
 
@@ -107,7 +107,53 @@ is a fully-resident IQ2_XXS tensor-parallel run.
 
 ---
 
-## What antirez already measured (same machine class, **IQ2_XXS**)
+## Q4 is non-negotiable — what that actually implies
+
+Constraint: **do not drop below Q4** for work quality.
+
+Then the speed problem is no longer “tune DwarfStar.” It is **capacity arithmetic**:
+
+| Pooled unified memory | Can Q4 (~406–467 GB) be fully resident? | Realistic decode |
+|---|---|---|
+| **2×128 GB = 256 GB** (your box) | **No** (~150–210 GB short) | SSD streaming: **~3 tok/s** now; maybe **~4–5** if everything is optimized |
+| **2×256 GB = 512 GB** (e.g. two M3/M5 Ultra 256 GB class) | **Yes** with llama.cpp RPC / layer split (~200 GiB/node reported for UD-Q4_K_S) | This is the hardware class where **resident Q4 ~10+ tok/s** becomes plausible |
+| **4×128 GB = 512 GB** | **Yes** if you pipeline-split layers across four boxes | Same residency idea; more sync hops than 2×256 |
+| One **512 GB+** Mac | **Yes** single-node | Simplest ops; no RPC |
+
+People already run **Unsloth UD-Q4_K_S (~406 GB)** resident across **two 256 GB Mac Studios** via
+llama.cpp RPC (~205 GiB weights/node under a ~248 GiB wired cap). That is the existence proof
+that **Q4 + ~10-class decode needs ~512 GB pooled**, not 256 GB.
+
+On your current 2×128 GB kit, staying on Q4 means:
+
+### What you can still do (streaming squeeze — not a path to 10)
+
+These only move you inside the streaming band:
+
+1. **Hot GGUF on internal SSD**, not the Lexar enclosure (enclosure = capacity tier).
+2. Prefer **automatic** `--ssd-streaming` budget; if manual, stay around **48–64 GB** expert
+   cache and watch that the cache stays lockable (overshoot → paging → slower than 3).
+3. Let GLM keep the largest **full-layer prefix** resident (`--ssd-streaming-full-layers` auto);
+   don’t starve KV/scratch to inflate the expert cache.
+4. Raise `iogpu.wired_limit_mb` so Metal can pin what does fit.
+5. Measure **warm** decode only; long context and thinking mode both look slower.
+
+Honest ceiling on 2×128 GB + Q4: **low single digits**. Software will not invent the missing
+~200 GB of unified memory.
+
+### What actually gets Q4 to ~10+
+
+Pick one capacity upgrade (quant stays Q4):
+
+1. **Replace / add memory class:** two machines with **≥256 GB each**, Thunderbolt link,
+   llama.cpp RPC (or future ds4 Q4 TP if it ever lands) so each node holds ~half the Q4
+   weights fully resident.
+2. **Add boxes at 128 GB:** enough nodes that layer slices sum to ≥~450 GB resident (typically
+   **four** 128 GB Macs), accepting more pipeline hops.
+3. **One big box:** a **512 GB+** Mac Studio-class machine and skip the cluster.
+
+Until one of those is true, treat “~10 tok/s on Q4” as a **hardware purchase target**, not a
+config flag.
 
 From the DwarfStar README, GLM 5.2 **IQ2_XXS** (~188 GiB) on **two M5 Max 128 GB MacBooks**:
 
@@ -246,12 +292,11 @@ draft gain. Leave MTP off for the 2-box speed path.
 
 | Setup | Decode you should believe |
 |---|---|
-| DwarfStar **Q4** SSD streaming, ~64 GB cache, enclosure | **~3 tok/s** — expected (your number) |
-| DwarfStar **IQ2_XXS** SSD streaming, tuned, internal SSD | **~4.8 tok/s** — streaming ceiling on one 128 GB M5 Max |
-| DwarfStar **IQ2_XXS** TP over TB5 on both 128 GB M5 Maxes | **~16.8 tok/s** — clears 10 (not available for Q4) |
-| This repo, llama.cpp RPC, **IQ1_S**, f16 KV, top-5 | **~18.5 tok/s** — clears 10 |
-| Stay on **Q4** quality on 2×128 GB | Stay streaming; need more RAM for resident Q4 |
+| **Q4** + 2×128 GB + SSD streaming (you, now) | **~3 tok/s** — expected; maybe ~4–5 if tuned |
+| **Q4** + ~512 GB pooled, weights resident (2×256 or 4×128) | **The real path to ~10+ while keeping Q4** |
+| DwarfStar **IQ2_XXS** TP on 2×128 GB | **~16.8 tok/s** — faster, but below your Q4 floor |
+| This repo **IQ1_S** RPC on 2×128 GB | **~18.5 tok/s** — faster, but below your Q4 floor |
 
-The physics says the leap is **residency via two-box split on a quant that fits (~200–260 GB)**,
-not a cleverer SSD cache and not Q4-on-256 GB. Once experts stop coming from disk every token,
-10 tok/s is the conservative half of the measured Q2-class band.
+With **Q4 locked**, the missing ingredient is **~200 GB more pooled unified memory**, not a
+better SSD-cache knob. On the current two 128 GB Macs, plan for low-single-digit tok/s and
+treat a 2×256 GB (or equivalent) upgrade as the requirement for work-speed Q4.
