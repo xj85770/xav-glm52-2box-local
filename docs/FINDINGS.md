@@ -326,17 +326,86 @@ draft gain. Leave MTP off for the 2-box speed path.
 
 ---
 
-## Practical checklist to leave the ~3 tok/s regime
+## Hone Q4 streaming: ~3 → ~4–5 tok/s (do this on your current kit)
 
-1. **Put the hot GGUF on internal SSD** (or accept that Lexar-in-enclosure is a capacity tier).
-2. **One Thunderbolt 5 cable** between the two Macs; pin IPs on the member interfaces.
-3. Prefer **DwarfStar `--tensor-parallel` + RDMA** *or* **this repo’s RPC launcher** — both make
-   experts resident. Do not mix “streaming on both boxes” with a hope of TP-class speed.
-4. Raise `iogpu.wired_limit_mb` before resident loads so Metal can pin the shard.
-5. Confirm you are measuring **warm decode** (discard the first pass; `scripts/verify.sh` does).
-6. Keep context modest while validating speed (`-c 8192` / `CTX=16384`); long context taxes KV
-   and can look like a regression even when weights are resident.
-7. For llama.cpp path: `KV_TYPE=f16` and `N_EXPERT_USED=5`.
+Goal: stay on **Q4**, keep **SSD expert streaming**, squeeze the disk-bound path. This is the
+realistic win on 2×128 GB. Do **one change at a time** and re-measure warm decode.
+
+### 1. Put the *live* GGUF on internal SSD
+
+```sh
+# Example: copy once, then always -m the internal path
+cp -c /Volumes/Lexar/.../GLM-5.2-*-Q4*.gguf ~/models/
+# or: ditto / rsync -a --progress
+```
+
+- **Lexar NM790 in the enclosure** = capacity / backup tier.
+- **Internal Apple SSD** = hot path for expert `pread`s.
+- If the model only fits on Lexar, keep it there — but expect to stay closer to ~3 than ~5.
+
+### 2. Pin Metal wired headroom (each Mac, each boot)
+
+```sh
+sudo sysctl iogpu.wired_limit_mb=120000
+```
+
+Without this, a “64 GB” expert cache often cannot stay lockable and you fall into paging
+(slower than a slightly smaller locked cache).
+
+### 3. Prefer auto cache; treat 64 GB as a ceiling to test, not a floor
+
+```sh
+# A) baseline — let ds4 size the cache
+./ds4 -m ~/models/YOUR-Q4.gguf --ssd-streaming --ctx 8192 --nothink -n 256
+
+# B) only if auto undershoots and the machine stays snappy:
+./ds4 -m ~/models/YOUR-Q4.gguf --ssd-streaming \
+  --ssd-streaming-cache-experts 64GB --ctx 8192 --nothink -n 256
+```
+
+Read the **startup cache report**. You want a **lockable** dynamic cache. If the Mac gets
+swap-sticky or tok/s drops vs auto, **lower** the budget (try 48 GB) — overshoot loses.
+
+Leave `--ssd-streaming-full-layers` on **auto** unless you are A/B testing. Literal
+`full-layers 64` on Q4 does not fit; the engine caps from the byte budget anyway.
+
+### 4. Measure the right number
+
+- Discard the **first** generation (cold cache / first faults).
+- Use **`--nothink`** and modest **`-c 8192`** (or 16384) while tuning speed.
+- Average passes 2–3 of a fixed short prompt at temp 0 / greedy.
+- If you need thinking for work, re-enable after the speed recipe is stable — thinking
+  length will pull the wall-clock tok/s down even when decode hardware is unchanged.
+
+### 5. One Mac for the speed tune first
+
+Tune streaming on a **single** M5 Max until warm decode is in the **~4–5** band. Mirroring
+the same 64 GB recipe on the second Mac does **not** make one session faster; only use the
+second box for a second concurrent session or for a future resident/Q2 path.
+
+### 6. Quick A/B order (record tok/s each time)
+
+| Step | Change | Expect |
+|---|---|---|
+| 0 | Current (GGUF on Lexar, 64 GB manual) | ~3 |
+| 1 | Same flags, GGUF on **internal** SSD | usually the biggest jump |
+| 2 | `iogpu.wired_limit_mb=120000` | stabler cache lock |
+| 3 | `--ssd-streaming` **auto** cache vs `64GB` | pick the winner from the log + tok/s |
+| 4 | Try `48GB` if 64 GB feels paged | sometimes **faster** than 64 |
+| 5 | `--ctx 8192 --nothink`, warm only | fair apples-to-apples |
+
+Stop when warm decode sits around **~4–5**. Further enclosure shopping or “64 on both
+boxes” will not add another +2; that needs resident Q4 on ~512 GB pooled RAM.
+
+---
+
+## Practical checklist (other regimes)
+
+1. **Q4 streaming hone:** follow the section above (internal SSD → wired limit → auto vs 64 GB).
+2. **For ~10+ while keeping Q4:** upgrade to ~512 GB pooled (2×256 GB RPC, etc.) — see
+   “Q4 is non-negotiable.”
+3. **If quant may drop:** DwarfStar IQ2 TP or this repo’s IQ1_S RPC on the current 2×128 GB.
+4. For llama.cpp path: `KV_TYPE=f16` and `N_EXPERT_USED=5`; measure with `scripts/verify.sh`.
 
 ---
 
@@ -344,11 +413,10 @@ draft gain. Leave MTP off for the 2-box speed path.
 
 | Setup | Decode you should believe |
 |---|---|
-| **Q4** + 2×128 GB + SSD streaming (you, now) | **~3 tok/s** — expected; maybe ~4–5 if tuned |
+| **Q4** + 2×128 GB + SSD streaming (you, now) | **~3 tok/s** — expected; hone to **~4–5** with internal SSD + lockable cache |
 | **Q4** + ~512 GB pooled, weights resident (2×256 or 4×128) | **The real path to ~10+ while keeping Q4** |
 | DwarfStar **IQ2_XXS** TP on 2×128 GB | **~16.8 tok/s** — faster, but below your Q4 floor |
 | This repo **IQ1_S** RPC on 2×128 GB | **~18.5 tok/s** — faster, but below your Q4 floor |
 
-With **Q4 locked**, the missing ingredient is **~200 GB more pooled unified memory**, not a
-better SSD-cache knob. On the current two 128 GB Macs, plan for low-single-digit tok/s and
-treat a 2×256 GB (or equivalent) upgrade as the requirement for work-speed Q4.
+With **Q4 locked** on 2×128 GB, ship the **~4–5 streaming hone** above; treat ~10 tok/s as a
+**~512 GB pooled RAM** purchase, not another cache flag.
