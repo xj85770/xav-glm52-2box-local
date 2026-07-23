@@ -26,10 +26,11 @@ A single 128GB Mac can't hold the model (it's ~202GB), so it falls back to SSD s
 which is unusable. Pool two Macs over Thunderbolt into 256GB of unified memory and the whole model stays
 resident: same model, same quant, **~16 → 18.5 tok/s**.
 
-If you are coming from **DwarfStar (`ds4`) SSD streaming at ~3 tok/s** with a ~64GB expert cache:
-that number is the disk-bound regime, not a hardware ceiling. On the same 2× M5 Max 128GB class,
-making experts resident (DwarfStar tensor-parallel, or this repo’s RPC split) is what crosses
-**~10 tok/s** — measured ~16.8 (ds4 TP) and ~18.5 (this repo). Physics, knobs, and checklists are in
+If you are coming from **DwarfStar (`ds4`) SSD streaming at ~3 tok/s** on **Q4** with a ~64GB
+expert cache: that number is the disk-bound regime for a **~430–470 GB** weight set that cannot
+reside in 2×128 GB. Antirez’s **~16.8 tok/s** TP post is **IQ2_XXS**, and ds4 currently
+**rejects routed Q4 for tensor-parallel**. To clear **~10 tok/s** on this hardware you need a
+quant that fits (~IQ2 / Q2 / this repo’s IQ1_S) made resident across both Macs — details in
 [`docs/FINDINGS.md`](docs/FINDINGS.md).
 
 ## Results

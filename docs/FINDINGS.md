@@ -6,11 +6,13 @@ This note answers the practical question behind this repo:
 > cache per M5 Mac**, seeing about **~3 tok/s**. Can we get to **~10+ tok/s**? What does
 > the physics allow?
 
-Short answer: **yes — but not by tuning the SSD cache.** At ~3 tok/s you are disk-bound.
-The step that crosses ~10 tok/s is making the **routed experts memory-resident across both
-Macs** (DwarfStar tensor-parallel over Thunderbolt, or this repo’s llama.cpp RPC
-pipeline-parallel). Antirez’s own numbers on the same class of hardware already clear that
-bar (~16.8 tok/s TP). This repo’s tuned llama.cpp path lands around **15.6 → 18.5 tok/s**.
+Short answer: **~10 tok/s is real on this hardware — but not while staying on Q4.**
+
+At ~3 tok/s you are disk-bound. Crossing ~10 requires making routed experts **memory-resident
+across both Macs**. Antirez’s published **~16.8 tok/s** is **IQ2_XXS (~188–211 GB)**, not Q4.
+Your Q4 GGUF is ~434–467 GB: it **cannot fully reside in 2×128 GB (256 GB pooled)**, and
+DwarfStar currently **rejects routed Q4 for tensor-parallel**. So Q4 on this box class is
+stuck in the streaming band unless you drop quant (or buy more RAM).
 
 ---
 
@@ -66,23 +68,65 @@ requires **removing the disk from the per-token critical path**.
 
 ---
 
-## What antirez already measured (same machine class)
+## Q4 vs Q2 — the important correction
 
-From the DwarfStar README, GLM 5.2 IQ2_XXS (~188 GiB) on **two M5 Max 128 GB MacBooks**:
+If you are on **Q4** and comparing to antirez’s speed posts, you are not on the same quant.
+
+| GGUF | On-disk size | Fits resident in 2×128 GB? | DwarfStar 2-Mac TP? |
+|---|---|---|---|
+| antirez **IQ2_XXS** (the ~16.8 tok/s post) | **~211 GB** | Yes (with TP expert split) | **Yes** (ownership-aware) |
+| antirez **Q2_K** | **~262 GB** | Borderline (dense is replicated) | **Yes** (ownership-aware) |
+| antirez **Q4_K** | **~434 GB** | **No** (≫ 256 GB) | **Rejected before eval** |
+| Unsloth **UD-Q4_K_XL** | **~467 GB** | **No** | Streaming / normal Metal only |
+| This repo **IQ1_S** (Unsloth) | **~202–217 GB** | Yes via llama.cpp RPC split | N/A (use this repo’s launcher) |
+
+From DwarfStar’s own README:
+
+> Two-Mac tensor parallelism currently requires an ownership-aware IQ2_XXS or Q2_K routed
+> layout; **a routed Q4 GLM must be rejected before evaluation.**
+
+### Why your Q4 streaming is ~3 tok/s (and his Q2 looks faster)
+
+- Same 64 GB expert cache holds **~half as many Q4 experts** as Q2/IQ2.
+- Each cache miss moves **~2× the bytes**.
+- Hit rate drops and disk work per token rises → landing around **~3 tok/s** on an enclosure
+  is consistent; his **~4.8 tok/s** streaming ceiling is the **IQ2_XXS** curve, not Q4.
+
+**You cannot expect his ~16.8 tok/s number while remaining on Q4 with 2×128 GB.** That number
+is a fully-resident IQ2_XXS tensor-parallel run.
+
+### Paths if you want ≥10 tok/s
+
+1. **Keep DwarfStar, drop to IQ2_XXS or Q2_K, enable `--tensor-parallel`** → expect ~15–17 tok/s
+   on TB5/RDMA (measured ~16.8 on IQ2_XXS). Quality tradeoff vs Q4.
+2. **Keep this hardware, switch to this repo’s IQ1_S + llama.cpp RPC** → measured **~18.5 tok/s**.
+   Also a heavier quant drop than Q4, but the residency math works.
+3. **Stay on Q4 for quality** → you need **more unified memory** (roughly ≥512 GB pooled for a
+   true resident Q4-class MoE), or accept streaming (~few tok/s). Pipeline-parallel across the
+   two 128 GB Macs cannot hide a 430 GB+ weight set.
+
+---
+
+## What antirez already measured (same machine class, **IQ2_XXS**)
+
+From the DwarfStar README, GLM 5.2 **IQ2_XXS** (~188 GiB) on **two M5 Max 128 GB MacBooks**:
 
 | Mode | Decode | Prefill (4k) | Residency |
 |---|---|---|---|
 | One Mac, `--ssd-streaming` | **~4.8 tok/s** | ~3–5 tok/s | streams experts from SSD |
 | Two Macs, `--tensor-parallel` over TB5/RDMA | **~16.8 tok/s** (15.4 at 4k ctx) | **~94 tok/s** | fully memory-resident (half the experts on each Mac) |
 
-That is the “someone got ~10+” data point, with margin. Your ~3 tok/s is a **worse streaming
-run** of the left column, not evidence that 10 is unreachable.
+That is the “someone got ~10+” data point — **on Q2-class weights**. A Q4 streaming run at
+~3 tok/s is a different regime, not a failed attempt at that number.
 
 ---
 
-## Path A — stay on DwarfStar, go tensor-parallel (recommended first try)
+## Path A — DwarfStar tensor-parallel (**IQ2_XXS / Q2_K only**)
 
 Goal: keep using `ds4`, but stop streaming experts every token.
+
+**Prerequisite:** use an ownership-aware **IQ2_XXS or Q2_K** GGUF. Routed **Q4 is rejected**
+for TP. If you stay on Q4, skip to “stay on Q4” above — Path A will not start.
 
 ### Why TP works here
 
@@ -175,9 +219,10 @@ draft gain. Leave MTP off for the 2-box speed path.
 
 | Idea | Why it stalls |
 |---|---|
+| Stay on **Q4** and chase antirez’s ~16.8 number | That number is **IQ2_XXS TP**. Q4 is ~434 GB, won’t reside in 256 GB, and ds4 **rejects** Q4 for TP. |
 | Bigger `--ssd-streaming-cache-experts` (64 → 75 GB) | Still streaming; antirez saw auto ~59 GB ≈ manual 64–75 on M5 Max. Gains are small and risk paging. |
-| Faster external enclosure alone | Enclosure sequential ~3 GB/s ceiling; expert traffic is random. Moves 3→ maybe ~4–5, not 10. |
-| Running streaming on *each* Mac separately | Two independent ~3–5 tok/s sessions ≠ one 10 tok/s decode. |
+| Faster external enclosure alone | Enclosure sequential ~3 GB/s ceiling; expert traffic is random. Moves 3→ maybe ~4–5 on Q2, still worse on Q4. |
+| Running streaming on *each* Mac separately | Two independent ~3 tok/s Q4 sessions ≠ one 10 tok/s decode. |
 | Pipeline-distributed generation for speed | Fits bigger models / helps **prefill**; autoregressive decode pays a hop every token and is usually **slower** than single-process (Flash Q4 example: 30.6 → 24.7 tok/s). |
 | Expecting MTP/DSpark to save a streaming run | Speculation multiplies expert verification traffic; bad fit when experts already miss to disk. |
 
@@ -201,11 +246,12 @@ draft gain. Leave MTP off for the 2-box speed path.
 
 | Setup | Decode you should believe |
 |---|---|
-| DwarfStar SSD streaming, ~64 GB cache, weights on enclosure | **~3 tok/s** (your number) — expected |
-| DwarfStar SSD streaming, tuned, internal SSD | **~4.8 tok/s** — streaming ceiling on one 128 GB M5 Max |
-| DwarfStar TP over TB5 on both 128 GB M5 Maxes | **~16.8 tok/s** — clears 10 |
-| This repo, llama.cpp RPC, f16 KV, top-5 | **~18.5 tok/s** — clears 10 |
+| DwarfStar **Q4** SSD streaming, ~64 GB cache, enclosure | **~3 tok/s** — expected (your number) |
+| DwarfStar **IQ2_XXS** SSD streaming, tuned, internal SSD | **~4.8 tok/s** — streaming ceiling on one 128 GB M5 Max |
+| DwarfStar **IQ2_XXS** TP over TB5 on both 128 GB M5 Maxes | **~16.8 tok/s** — clears 10 (not available for Q4) |
+| This repo, llama.cpp RPC, **IQ1_S**, f16 KV, top-5 | **~18.5 tok/s** — clears 10 |
+| Stay on **Q4** quality on 2×128 GB | Stay streaming; need more RAM for resident Q4 |
 
-The physics says the leap is **residency via two-box split**, not a cleverer SSD cache.
-Once experts stop coming from disk every token, 10 tok/s is not aspirational on this
-hardware — it is the conservative half of the measured band.
+The physics says the leap is **residency via two-box split on a quant that fits (~200–260 GB)**,
+not a cleverer SSD cache and not Q4-on-256 GB. Once experts stop coming from disk every token,
+10 tok/s is the conservative half of the measured Q2-class band.
