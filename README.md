@@ -26,6 +26,12 @@ A single 128GB Mac can't hold the model (it's ~202GB), so it falls back to SSD s
 which is unusable. Pool two Macs over Thunderbolt into 256GB of unified memory and the whole model stays
 resident: same model, same quant, **~16 → 18.5 tok/s**.
 
+If you are coming from **DwarfStar (`ds4`) SSD streaming at ~3 tok/s** with a ~64GB expert cache:
+that number is the disk-bound regime, not a hardware ceiling. On the same 2× M5 Max 128GB class,
+making experts resident (DwarfStar tensor-parallel, or this repo’s RPC split) is what crosses
+**~10 tok/s** — measured ~16.8 (ds4 TP) and ~18.5 (this repo). Physics, knobs, and checklists are in
+[`docs/FINDINGS.md`](docs/FINDINGS.md).
+
 ## Results
 
 | Config | tok/s | vs start |
@@ -40,6 +46,8 @@ Two free wins, no new model code:
    small MLA KV. Just use `f16`.
 2. **Drop expert routing from top-8 to top-5.** Output stays coherent and you read fewer expert weights
    per token. (Odd values like 7 and 5 are stable; some even values trip an allocation edge on this build.)
+
+Full notes (including why SSD streaming caps ~3–5 tok/s and how 2-box residency clears 10): [`docs/FINDINGS.md`](docs/FINDINGS.md).
 
 **Context:** served up to **128K tokens** live (the model trains to 1M natively).
 
