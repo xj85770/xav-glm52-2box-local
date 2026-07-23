@@ -17,14 +17,51 @@ ts(){ date '+%Y-%m-%d %H:%M:%S'; }
 say(){ printf '[%s] %s\n' "$(ts)" "$*"; }
 die(){ printf '[%s] ABORT: %s\n' "$(ts)" "$*" >&2; exit 1; }
 
-# Re-assert the worker's fast-link IP if a pin command is configured, then confirm reachability.
-link_up(){
-  [ -n "${LINK_PIN_CMD:-}" ] && eval "$LINK_PIN_CMD" >/dev/null 2>&1
-  local w; for w in 1 2 3; do
-    ping -c1 -t2 "$NODE1_IP" >/dev/null 2>&1 && return 0
-    sleep 4
+# Ping an IP with short retries.
+_ping_ip(){
+  local ip="$1" w
+  for w in 1 2 3; do
+    ping -c1 -t2 "$ip" >/dev/null 2>&1 && return 0
+    sleep 2
   done
-  ping -c2 -t2 "$NODE1_IP" >/dev/null 2>&1
+  ping -c2 -t2 "$ip" >/dev/null 2>&1
+}
+
+# Optional per-link pin commands (dual TB5: primary cable + backup cable).
+_pin_link(){
+  local which="$1"
+  local cmd=""
+  case "$which" in
+    primary)   cmd="${LINK_PIN_CMD:-}" ;;
+    backup)    cmd="${LINK_PIN_CMD_BACKUP:-}" ;;
+  esac
+  [ -n "$cmd" ] && eval "$cmd" >/dev/null 2>&1
+}
+
+# Pick the best reachable fast-link IP. Primary first, then backup. Echoes the winner.
+select_fast_link(){
+  local ip label
+  for entry in "primary:${NODE1_IP}" "backup:${NODE1_IP_BACKUP:-}"; do
+    label="${entry%%:*}"
+    ip="${entry#*:}"
+    [ -z "$ip" ] && continue
+    _pin_link "$label"
+    if _ping_ip "$ip"; then
+      [ "$label" = "backup" ] && say "WARN: primary link down — using backup $ip"
+      printf '%s' "$ip"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Re-assert link IPs if configured, select active fast link, confirm reachability.
+link_up(){
+  local active
+  active="$(select_fast_link)" || return 1
+  NODE1_IP="$active"
+  export NODE1_IP
+  return 0
 }
 
 # NODE1 available RAM in GiB (free + inactive + speculative).

@@ -23,8 +23,8 @@ done
 
 # ---- 1. GATE A: fast link reachable ----------------------------------------
 say "GATE A: confirming NODE1 fast link $NODE1_IP ..."
-link_up || die "NODE1 $NODE1_IP not reachable. Bring the fast link up (see LINK_PIN_CMD in cluster.env). Nothing started."
-say "GATE A passed."
+link_up || die "NODE1 fast link not reachable (tried primary${NODE1_IP_BACKUP:+, backup}). Bring Thunderbolt up (see LINK_PIN_CMD in cluster.env). Nothing started."
+say "GATE A passed (active link: $NODE1_IP)."
 
 # ---- 2. GATE B: SSH-exec reachable -----------------------------------------
 say "GATE B: confirming SSH-exec to $NODE1_SSH ..."
