@@ -46,8 +46,10 @@ Two free wins, no new model code:
 ## Hardware
 
 - 2× Apple M5 Max, 128GB unified memory each (256GB total)
-- One Thunderbolt 5 cable between them (a single cable is the stable config)
+- Thunderbolt 5 between them — **one cable carries RPC traffic**; a second cable is fine for
+  **failover** (not bandwidth aggregation). See `NODE1_IP` / `NODE1_IP_BACKUP` in `cluster.env`.
 - Metal backend on both, llama.cpp RPC, pipeline-parallel (each box holds half the weights)
+- Store the GGUF on **internal SSD** on NODE0. External NVMe is for archive/backup, not serve.
 
 ## Model
 
@@ -66,11 +68,15 @@ GLM-5.2, 753B params (~40B active/token, MoE, 256 experts, `glm-dsa` / MLA atten
 cp scripts/cluster.env.example scripts/cluster.env
 $EDITOR scripts/cluster.env     # fill in NODE1 ssh/ip, binary paths, model path
 
-# 3. Launch (run on NODE0 — the coordinator):
+# 3. Launch for ceiling speed (run on NODE0 — the coordinator):
+scripts/ceiling.sh          # preflight + launch + verify (bar > 17 tok/s)
+
+# Or step by step:
+scripts/preflight.sh
 KV_TYPE=f16 N_EXPERT_USED=5 CTX=16384 scripts/launch.sh
+THRESHOLD=17.0 PASSES=5 scripts/verify.sh
 
 # 4. It serves an OpenAI-compatible endpoint on localhost:8080.
-scripts/verify.sh
 ```
 
 The launcher is deliberately paranoid: it gates on the cross-node link, pre-flights free RAM on both
@@ -86,11 +92,22 @@ wall-clock, nothing is sped up or faked):
 - `pacman.html` — a working Pac-Man **written by GLM-5.2 itself** (one one-character fix). Open it in a browser and play.
 - `render-bench-video.py` — renders a transcript into a terminal-style MP4.
 
+## Ceiling tuning
+
+Full physics, troubleshooting, and the measured tuning table live in
+[`docs/FINDINGS.md`](docs/FINDINGS.md). Quick checklist:
+
+1. **Both Macs, both halves resident** — ~100GB+ RAM in use on each machine during decode.
+2. **Patches applied, identical binaries** on NODE0 and NODE1.
+3. **`KV_TYPE=f16` + `N_EXPERT_USED=5`** — the documented ~18.5 tok/s config.
+4. **Thunderbolt RPC IP** — not Wi‑Fi; use `NODE1_IP_BACKUP` if you have a second TB5 cable.
+5. **Skip MTP** on 2-box RPC (helps single-box only).
+
 ## Patches
 
 - `patches/ggml-rpc-stability.patch` — converts a recursive graph walk to iterative, fixing a stack
-  overflow on deep-MoE graphs over llama.cpp's RPC backend on macOS. Generally useful for large MoE + RPC.
-- `patches/glmdsa-mtp.patch` — wires the glm-dsa nextn / MTP head into llama.cpp.
+  overflow on deep-MoE graphs over llama.cpp's RPC backend on macOS. **Required** for ceiling speed.
+- `patches/glmdsa-mtp.patch` — wires the glm-dsa nextn / MTP head into llama.cpp (single-box only).
 
 ## Credits
 

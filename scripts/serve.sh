@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # serve.sh — foreground llama-server entrypoint (launched in a tmux session by launch.sh).
-# Reads decode config from cluster.env; override any value via env at runtime, e.g.:
-#   N_EXPERT_USED=5 KV_TYPE=f16 CTX=8192 ./launch.sh
+# Ceiling defaults live in cluster.env (KV_TYPE=f16, N_EXPERT_USED=5). Override at runtime:
+#   CTX=8192 ./launch.sh
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 

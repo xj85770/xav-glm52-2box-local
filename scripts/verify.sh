@@ -5,14 +5,15 @@
 set -uo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 THRESHOLD="${THRESHOLD:-10.0}"
+PASSES="${PASSES:-3}"
 PROMPT="${PROMPT:-Explain why the sky is blue to a curious ten-year-old, in one tight paragraph.}"
 
 curl -s "http://127.0.0.1:${SERVE_PORT}/health" 2>/dev/null | grep -qi '"ok"' || die "Server not healthy on :${SERVE_PORT}. Run launch.sh first."
 
-say "3 warm passes (first pass discarded as cold) ..."
+say "${PASSES} warm passes (first pass discarded as cold) ..."
 TPS=()
 LAST=""
-for p in 1 2 3; do
+for p in $(seq 1 "$PASSES"); do
   R="$(curl -s "http://127.0.0.1:${SERVE_PORT}/v1/chat/completions" -H 'Content-Type: application/json' \
         -d "$(python3 -c "import json,sys;print(json.dumps({'messages':[{'role':'user','content':sys.argv[1]}],'temperature':0.2,'max_tokens':160,'stream':False}))" "$PROMPT")" 2>/dev/null)"
   t="$(printf '%s' "$R" | python3 -c "import sys,json
