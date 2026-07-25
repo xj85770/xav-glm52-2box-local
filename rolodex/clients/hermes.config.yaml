@@ -1,0 +1,19 @@
+# Hermes Agent — point at the rolodex (Custom Endpoint / openai-api style).
+# Merge into your Hermes config.yaml or select via `hermes model` → Custom Endpoint.
+#
+# Base URL must include /v1
+# Model: use a lane, not a raw provider id
+
+model:
+  # Exact key names vary slightly by Hermes version; if `hermes model` wizard
+  # is easier, use that and paste these values.
+  provider: custom
+  base_url: http://127.0.0.1:4000/v1
+  model: lane/smart
+  api_key: sk-rolodex
+
+# Suggested lane defaults:
+#   interactive coworker / general Q&A : lane/smart
+#   private / long jobs on your Macs   : lane/local
+#   fast tool loops                    : lane/fast
+#   coding                             : lane/code

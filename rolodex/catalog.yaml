@@ -1,0 +1,1004 @@
+# Full legitimate free / trial API catalog for the rolodex.
+# Source: https://github.com/cheahjs/free-llm-api-resources (fetched 2026-07-25)
+# context / tps_typical are best-known or estimated — see notes. Limits from the list.
+# Do not abuse free tiers.
+
+meta:
+  source: https://github.com/cheahjs/free-llm-api-resources
+  fetched: "2026-07-25"
+  excludes: "reverse-engineered chatbots"
+
+providers:
+  - id: local
+    name: Local GLM (two-box / ds4)
+    tier: local
+    privacy: private
+    requires_env: null
+    shared_quota: false
+    notes: "Your Mac cluster. No cloud quota."
+    models:
+      - id: local/ds4
+        display: GLM-5.2 via ds4-server
+        litellm_model: openai/LOCAL_MODEL_ID
+        api_base_env: LOCAL_DS4_BASE
+        api_key_env: LOCAL_API_KEY
+        context: 131072
+        context_note: "served up to 128K in this repo; model trains higher"
+        tps_typical: 3.0
+        tps_note: "ds4 SSD streaming ~3 t/s Q4; TP/RPC higher"
+        rpm: null
+        rpd: null
+        tpm: null
+        tpd: null
+        lanes: [local, smart, code]
+        order_in_lane: { local: 1, smart: 4, code: 4 }
+      - id: local/llama
+        display: GLM-5.2 via llama.cpp RPC
+        litellm_model: openai/LOCAL_MODEL_ID
+        api_base_env: LOCAL_LLAMA_BASE
+        api_key_env: LOCAL_API_KEY
+        context: 131072
+        context_note: "served up to 128K"
+        tps_typical: 18.5
+        tps_note: "f16 KV + top-5 experts on 2× M5 Max"
+        rpm: null
+        rpd: null
+        tpm: null
+        tpd: null
+        lanes: [local]
+        order_in_lane: { local: 2 }
+
+  - id: openrouter
+    name: OpenRouter
+    tier: free
+    privacy: cloud
+    requires_env: OPENROUTER_API_KEY
+    shared_quota: true
+    limits:
+      rpm: 20
+      rpd: 50
+      rpd_with_topup: 1000
+    notes: "All :free models share one account quota (20 RPM / 50 RPD; 1000 RPD with $10 lifetime topup)."
+    models:
+      - id: or/hermes-3-405b
+        display: Hermes 3 Llama 3.1 405B
+        litellm_model: openrouter/nousresearch/hermes-3-llama-3.1-405b:free
+        context: 131072
+        tps_typical: 25
+        lanes: [smart]
+        order_in_lane: { smart: 2 }
+      - id: or/llama-3.2-3b
+        display: Llama 3.2 3B Instruct
+        litellm_model: openrouter/meta-llama/llama-3.2-3b-instruct:free
+        context: 131072
+        tps_typical: 80
+        lanes: [fast]
+        order_in_lane: { fast: 5 }
+      - id: or/llama-3.3-70b
+        display: Llama 3.3 70B Instruct
+        litellm_model: openrouter/meta-llama/llama-3.3-70b-instruct:free
+        context: 131072
+        tps_typical: 40
+        lanes: [fast, smart]
+        order_in_lane: { fast: 3, smart: 5 }
+      - id: or/dolphin-mistral-24b
+        display: Dolphin Mistral 24B Venice
+        litellm_model: openrouter/cognitivecomputations/dolphin-mistral-24b-venice-edition:free
+        context: 32768
+        tps_typical: 45
+        lanes: [smart]
+        order_in_lane: { smart: 6 }
+      - id: or/north-mini-code
+        display: Cohere North Mini Code
+        litellm_model: openrouter/cohere/north-mini-code:free
+        context: 32768
+        tps_typical: 60
+        lanes: [code]
+        order_in_lane: { code: 3 }
+      - id: or/gemma-4-26b
+        display: Gemma 4 26B A4B IT
+        litellm_model: openrouter/google/gemma-4-26b-a4b-it:free
+        context: 131072
+        tps_typical: 50
+        lanes: [smart, fast]
+        order_in_lane: { smart: 7, fast: 6 }
+      - id: or/gemma-4-31b
+        display: Gemma 4 31B IT
+        litellm_model: openrouter/google/gemma-4-31b-it:free
+        context: 131072
+        tps_typical: 45
+        lanes: [smart]
+        order_in_lane: { smart: 8 }
+      - id: or/nemotron-3-nano-30b
+        display: Nemotron 3 Nano 30B
+        litellm_model: openrouter/nvidia/nemotron-3-nano-30b-a3b:free
+        context: 131072
+        tps_typical: 55
+        lanes: [fast, smart]
+        order_in_lane: { fast: 4, smart: 9 }
+      - id: or/nemotron-3-nano-omni
+        display: Nemotron 3 Nano Omni 30B Reasoning
+        litellm_model: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+        context: 131072
+        tps_typical: 40
+        lanes: [smart]
+        order_in_lane: { smart: 3 }
+      - id: or/nemotron-3-super-120b
+        display: Nemotron 3 Super 120B
+        litellm_model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+        context: 131072
+        tps_typical: 30
+        lanes: [smart]
+        order_in_lane: { smart: 2 }
+      - id: or/nemotron-3-ultra-550b
+        display: Nemotron 3 Ultra 550B
+        litellm_model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+        context: 131072
+        tps_typical: 15
+        lanes: [smart]
+        order_in_lane: { smart: 10 }
+      - id: or/nemotron-nano-12b-vl
+        display: Nemotron Nano 12B V2 VL
+        litellm_model: openrouter/nvidia/nemotron-nano-12b-v2-vl:free
+        context: 131072
+        tps_typical: 50
+        lanes: [smart]
+        order_in_lane: { smart: 11 }
+      - id: or/nemotron-nano-9b
+        display: Nemotron Nano 9B V2
+        litellm_model: openrouter/nvidia/nemotron-nano-9b-v2:free
+        context: 131072
+        tps_typical: 70
+        lanes: [fast]
+        order_in_lane: { fast: 7 }
+      - id: or/gpt-oss-20b
+        display: OpenAI GPT-OSS 20B
+        litellm_model: openrouter/openai/gpt-oss-20b:free
+        context: 131072
+        tps_typical: 60
+        lanes: [fast, code]
+        order_in_lane: { fast: 4, code: 4 }
+      - id: or/laguna-m
+        display: Poolside Laguna M.1
+        litellm_model: openrouter/poolside/laguna-m.1:free
+        context: 131072
+        tps_typical: 40
+        lanes: [smart]
+        order_in_lane: { smart: 12 }
+      - id: or/laguna-xs
+        display: Poolside Laguna XS 2.1
+        litellm_model: openrouter/poolside/laguna-xs-2.1:free
+        context: 65536
+        tps_typical: 70
+        lanes: [fast]
+        order_in_lane: { fast: 8 }
+      - id: or/qwen3-coder
+        display: Qwen3 Coder
+        litellm_model: openrouter/qwen/qwen3-coder:free
+        context: 262144
+        tps_typical: 35
+        lanes: [code]
+        order_in_lane: { code: 2 }
+      - id: or/qwen3-next-80b
+        display: Qwen3 Next 80B A3B Instruct
+        litellm_model: openrouter/qwen/qwen3-next-80b-a3b-instruct:free
+        context: 131072
+        tps_typical: 35
+        lanes: [smart, code]
+        order_in_lane: { smart: 2, code: 5 }
+      - id: or/hy3
+        display: Tencent HY3
+        litellm_model: openrouter/tencent/hy3:free
+        context: 131072
+        tps_typical: 40
+        lanes: [smart]
+        order_in_lane: { smart: 13 }
+
+  - id: google
+    name: Google AI Studio
+    tier: free
+    privacy: trains_outside_uk_ch_eea_eu
+    requires_env: GEMINI_API_KEY
+    shared_quota: false
+    notes: "Data used for training outside UK/CH/EEA/EU. Per-model RPM/RPD/TPM."
+    models:
+      - id: gemini/3.5-flash
+        display: Gemini 3.5 Flash
+        litellm_model: gemini/gemini-3.5-flash
+        context: 1048576
+        tps_typical: 90
+        rpm: 5
+        rpd: 20
+        tpm: 250000
+        lanes: [smart]
+        order_in_lane: { smart: 1 }
+      - id: gemini/3-flash
+        display: Gemini 3 Flash
+        litellm_model: gemini/gemini-3-flash
+        context: 1048576
+        tps_typical: 100
+        rpm: 5
+        rpd: 20
+        tpm: 250000
+        lanes: [smart, fast]
+        order_in_lane: { smart: 1, fast: 2 }
+      - id: gemini/3.1-flash-lite
+        display: Gemini 3.1 Flash-Lite
+        litellm_model: gemini/gemini-3.1-flash-lite
+        context: 1048576
+        tps_typical: 120
+        rpm: 15
+        rpd: 500
+        tpm: 250000
+        lanes: [fast, smart]
+        order_in_lane: { fast: 1, smart: 2 }
+      - id: gemini/2.5-flash
+        display: Gemini 2.5 Flash
+        litellm_model: gemini/gemini-2.5-flash
+        context: 1048576
+        tps_typical: 100
+        rpm: 5
+        rpd: 20
+        tpm: 250000
+        lanes: [smart]
+        order_in_lane: { smart: 1 }
+      - id: gemini/2.5-flash-lite
+        display: Gemini 2.5 Flash-Lite
+        litellm_model: gemini/gemini-2.5-flash-lite
+        context: 1048576
+        tps_typical: 120
+        rpm: 10
+        rpd: 20
+        tpm: 250000
+        lanes: [fast]
+        order_in_lane: { fast: 1 }
+      - id: gemini/gemma-3-27b
+        display: Gemma 3 27B Instruct
+        litellm_model: gemini/gemma-3-27b-it
+        context: 131072
+        tps_typical: 60
+        rpm: 30
+        rpd: 14400
+        tpm: 15000
+        lanes: [smart, fast]
+        order_in_lane: { smart: 3, fast: 3 }
+      - id: gemini/gemma-3-12b
+        display: Gemma 3 12B Instruct
+        litellm_model: gemini/gemma-3-12b-it
+        context: 131072
+        tps_typical: 80
+        rpm: 30
+        rpd: 14400
+        tpm: 15000
+        lanes: [fast]
+        order_in_lane: { fast: 3 }
+      - id: gemini/gemma-3-4b
+        display: Gemma 3 4B Instruct
+        litellm_model: gemini/gemma-3-4b-it
+        context: 131072
+        tps_typical: 120
+        rpm: 30
+        rpd: 14400
+        tpm: 15000
+        lanes: [fast]
+        order_in_lane: { fast: 4 }
+
+  - id: nvidia_nim
+    name: NVIDIA NIM
+    tier: free
+    privacy: cloud
+    requires_env: NVIDIA_API_KEY
+    shared_quota: true
+    limits:
+      rpm: 40
+    notes: "Phone verification required. Context often limited."
+    models:
+      - id: nim/default
+        display: NVIDIA NIM open models
+        litellm_model: nvidia_nim/meta/llama-3.3-70b-instruct
+        context: 32768
+        context_note: "varies by model; often tighter than advertised"
+        tps_typical: 40
+        rpm: 40
+        lanes: [smart, fast]
+        order_in_lane: { smart: 14, fast: 9 }
+
+  - id: mistral
+    name: Mistral La Plateforme
+    tier: free
+    privacy: trains_on_free_tier
+    requires_env: MISTRAL_API_KEY
+    shared_quota: false
+    notes: "Experiment plan; opt-in training; phone verify. 1 rps / 500k TPM / 1B TPM month per model."
+    models:
+      - id: mistral/small
+        display: Mistral Small
+        litellm_model: mistral/mistral-small-latest
+        context: 128000
+        tps_typical: 80
+        rpm: 60
+        tpm: 500000
+        tpd: null
+        lanes: [smart, fast]
+        order_in_lane: { smart: 4, fast: 5 }
+      - id: mistral/large
+        display: Mistral Large
+        litellm_model: mistral/mistral-large-latest
+        context: 128000
+        tps_typical: 50
+        rpm: 60
+        tpm: 500000
+        lanes: [smart]
+        order_in_lane: { smart: 4 }
+
+  - id: codestral
+    name: Mistral Codestral
+    tier: free
+    privacy: cloud
+    requires_env: MISTRAL_API_KEY
+    shared_quota: false
+    notes: "Codestral endpoint; 30 RPM / 2000 RPD; phone verify."
+    models:
+      - id: codestral/latest
+        display: Codestral
+        litellm_model: mistral/codestral-latest
+        api_base: https://codestral.mistral.ai/v1
+        context: 256000
+        tps_typical: 70
+        rpm: 30
+        rpd: 2000
+        lanes: [code]
+        order_in_lane: { code: 1 }
+
+  - id: huggingface
+    name: HuggingFace Inference Providers
+    tier: free
+    privacy: cloud
+    requires_env: HF_TOKEN
+    shared_quota: true
+    limits:
+      credit_usd_month: 0.10
+    notes: "$0.10/month credits. Serverless often <10GB models."
+    models:
+      - id: hf/llama-3.1-8b
+        display: HF Llama 3.1 8B Instruct
+        litellm_model: huggingface/meta-llama/Meta-Llama-3.1-8B-Instruct
+        context: 131072
+        tps_typical: 30
+        lanes: [fast]
+        order_in_lane: { fast: 10 }
+
+  - id: vercel
+    name: Vercel AI Gateway
+    tier: free
+    privacy: cloud
+    requires_env: VERCEL_AI_GATEWAY_TOKEN
+    shared_quota: true
+    limits:
+      credit_usd_month: 5.0
+    notes: "$5/month gateway credit. Routes to many providers."
+    models:
+      - id: vercel/gateway-default
+        display: Vercel AI Gateway (routed)
+        litellm_model: openai/vercel-ai-gateway
+        api_base_env: VERCEL_AI_GATEWAY_BASE
+        api_key_env: VERCEL_AI_GATEWAY_TOKEN
+        context: 128000
+        tps_typical: 50
+        lanes: [smart]
+        order_in_lane: { smart: 15 }
+
+  - id: opencode_zen
+    name: OpenCode Zen
+    tier: free
+    privacy: may_train
+    requires_env: OPENCODE_ZEN_API_KEY
+    shared_quota: true
+    notes: "Curated free models; may use data for improvement."
+    models:
+      - id: zen/nemotron-3-super
+        display: Nemotron 3 Super Free (Zen)
+        litellm_model: openai/nemotron-3-super-free
+        api_base_env: OPENCODE_ZEN_BASE
+        api_key_env: OPENCODE_ZEN_API_KEY
+        context: 131072
+        tps_typical: 40
+        lanes: [smart]
+        order_in_lane: { smart: 16 }
+      - id: zen/deepseek-v4-flash
+        display: DeepSeek V4 Flash Free (Zen)
+        litellm_model: openai/deepseek-v4-flash-free
+        api_base_env: OPENCODE_ZEN_BASE
+        api_key_env: OPENCODE_ZEN_API_KEY
+        context: 131072
+        tps_typical: 80
+        lanes: [fast]
+        order_in_lane: { fast: 11 }
+
+  - id: cerebras
+    name: Cerebras
+    tier: free
+    privacy: cloud
+    requires_env: CEREBRAS_API_KEY
+    shared_quota: false
+    notes: "Very high decode speed on free tier."
+    models:
+      - id: cerebras/gpt-oss-120b
+        display: Cerebras GPT-OSS 120B
+        litellm_model: cerebras/gpt-oss-120b
+        context: 65536
+        tps_typical: 1000
+        rpm: 30
+        rph: 900
+        rpd: 14400
+        tpm: 60000
+        tph: 1000000
+        tpd: 1000000
+        lanes: [fast, smart, code]
+        order_in_lane: { fast: 2, smart: 5, code: 3 }
+      - id: cerebras/llama3.1-8b
+        display: Cerebras Llama 3.1 8B
+        litellm_model: cerebras/llama3.1-8b
+        context: 8192
+        tps_typical: 1800
+        rpm: 30
+        rph: 900
+        rpd: 14400
+        tpm: 60000
+        tph: 1000000
+        tpd: 1000000
+        lanes: [fast]
+        order_in_lane: { fast: 2 }
+
+  - id: groq
+    name: Groq
+    tier: free
+    privacy: cloud
+    requires_env: GROQ_API_KEY
+    shared_quota: false
+    notes: "Per-model free limits. Excellent latency."
+    models:
+      - id: groq/llama-3.1-8b
+        display: Groq Llama 3.1 8B
+        litellm_model: groq/llama-3.1-8b-instant
+        context: 131072
+        tps_typical: 500
+        rpm: null
+        rpd: 14400
+        tpm: 6000
+        lanes: [fast]
+        order_in_lane: { fast: 1 }
+      - id: groq/llama-3.3-70b
+        display: Groq Llama 3.3 70B
+        litellm_model: groq/llama-3.3-70b-versatile
+        context: 131072
+        tps_typical: 200
+        rpd: 1000
+        tpm: 12000
+        lanes: [fast, smart]
+        order_in_lane: { fast: 1, smart: 3 }
+      - id: groq/gpt-oss-120b
+        display: Groq GPT-OSS 120B
+        litellm_model: groq/openai/gpt-oss-120b
+        context: 131072
+        tps_typical: 300
+        rpd: 1000
+        tpm: 8000
+        lanes: [code, smart]
+        order_in_lane: { code: 3, smart: 4 }
+      - id: groq/gpt-oss-20b
+        display: Groq GPT-OSS 20B
+        litellm_model: groq/openai/gpt-oss-20b
+        context: 131072
+        tps_typical: 400
+        rpd: 1000
+        tpm: 8000
+        lanes: [fast, code]
+        order_in_lane: { fast: 2, code: 4 }
+      - id: groq/qwen3.6-27b
+        display: Groq Qwen 3.6 27B
+        litellm_model: groq/qwen/qwen3.6-27b
+        context: 131072
+        tps_typical: 250
+        rpd: 1000
+        tpm: 8000
+        lanes: [smart, code]
+        order_in_lane: { smart: 4, code: 3 }
+      - id: groq/allam-2-7b
+        display: Groq Allam 2 7B
+        litellm_model: groq/allam-2-7b
+        context: 8192
+        tps_typical: 400
+        rpd: 7000
+        tpm: 6000
+        lanes: [fast]
+        order_in_lane: { fast: 12 }
+
+  - id: cohere
+    name: Cohere
+    tier: free
+    privacy: cloud
+    requires_env: COHERE_API_KEY
+    shared_quota: true
+    limits:
+      rpm: 20
+      rpm_month: 1000
+    notes: "20 RPM / 1000 requests/month shared across models."
+    models:
+      - id: cohere/command-a
+        display: Command A 03-2025
+        litellm_model: cohere/command-a-03-2025
+        context: 256000
+        tps_typical: 60
+        rpm: 20
+        rpd: 34
+        lanes: [smart]
+        order_in_lane: { smart: 6 }
+      - id: cohere/command-r7b
+        display: Command R7B
+        litellm_model: cohere/command-r7b-12-2024
+        context: 128000
+        tps_typical: 90
+        rpm: 20
+        rpd: 34
+        lanes: [fast, smart]
+        order_in_lane: { fast: 6, smart: 7 }
+      - id: cohere/command-r-plus
+        display: Command R+
+        litellm_model: cohere/command-r-plus-08-2024
+        context: 128000
+        tps_typical: 50
+        rpm: 20
+        rpd: 34
+        lanes: [smart]
+        order_in_lane: { smart: 8 }
+
+  - id: github_models
+    name: GitHub Models
+    tier: free
+    privacy: cloud
+    requires_env: GITHUB_TOKEN
+    shared_quota: true
+    notes: "Extremely restrictive I/O token limits; tier depends on Copilot plan."
+    models:
+      - id: github/gpt-4o-mini
+        display: GitHub GPT-4o mini
+        litellm_model: github/gpt-4o-mini
+        context: 128000
+        context_note: "effective free I/O caps much tighter than context"
+        tps_typical: 50
+        rpd: 50
+        lanes: [smart]
+        order_in_lane: { smart: 17 }
+      - id: github/llama-3.3-70b
+        display: GitHub Llama 3.3 70B
+        litellm_model: github/Llama-3.3-70B-Instruct
+        context: 128000
+        tps_typical: 40
+        rpd: 50
+        lanes: [smart]
+        order_in_lane: { smart: 18 }
+      - id: github/phi-4
+        display: GitHub Phi-4
+        litellm_model: github/Phi-4
+        context: 16384
+        tps_typical: 70
+        rpd: 50
+        lanes: [fast]
+        order_in_lane: { fast: 13 }
+
+  - id: cloudflare
+    name: Cloudflare Workers AI
+    tier: free
+    privacy: cloud
+    requires_env: CLOUDFLARE_API_TOKEN
+    requires_env_extra: [CLOUDFLARE_ACCOUNT_ID]
+    shared_quota: true
+    limits:
+      neurons_per_day: 10000
+    notes: "10k neurons/day free. Set CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN."
+    models:
+      - id: cf/glm-5.2
+        display: CF GLM-5.2
+        litellm_model: cloudflare/@cf/zai-org/glm-5.2
+        context: 131072
+        tps_typical: 25
+        lanes: [smart, local]
+        order_in_lane: { smart: 19, local: 3 }
+      - id: cf/gpt-oss-120b
+        display: CF GPT-OSS 120B
+        litellm_model: cloudflare/@cf/openai/gpt-oss-120b
+        context: 131072
+        tps_typical: 30
+        lanes: [smart, code]
+        order_in_lane: { smart: 20, code: 6 }
+      - id: cf/gpt-oss-20b
+        display: CF GPT-OSS 20B
+        litellm_model: cloudflare/@cf/openai/gpt-oss-20b
+        context: 131072
+        tps_typical: 40
+        lanes: [fast]
+        order_in_lane: { fast: 14 }
+      - id: cf/llama-3.3-70b
+        display: CF Llama 3.3 70B
+        litellm_model: cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast
+        context: 131072
+        tps_typical: 35
+        lanes: [smart]
+        order_in_lane: { smart: 21 }
+      - id: cf/qwen3-30b
+        display: CF Qwen3 30B
+        litellm_model: cloudflare/@cf/qwen/qwen3-30b-a3b-fp8
+        context: 131072
+        tps_typical: 35
+        lanes: [code, smart]
+        order_in_lane: { code: 7, smart: 22 }
+      - id: cf/kimi-k2.7-code
+        display: CF Kimi K2.7 Code
+        litellm_model: cloudflare/@cf/moonshotai/kimi-k2.7-code
+        context: 131072
+        tps_typical: 30
+        lanes: [code]
+        order_in_lane: { code: 8 }
+
+  # -------- Trial credit providers --------
+  - id: fireworks
+    name: Fireworks
+    tier: trial
+    privacy: cloud
+    requires_env: FIREWORKS_API_KEY
+    shared_quota: true
+    limits:
+      credit_usd: 1.0
+    notes: "$1 trial credit."
+    models:
+      - id: fw/llama-3.3-70b
+        display: Fireworks Llama 3.3 70B
+        litellm_model: fireworks_ai/accounts/fireworks/models/llama-v3p3-70b-instruct
+        context: 131072
+        tps_typical: 120
+        lanes: [smart, fast]
+        order_in_lane: { smart: 23, fast: 15 }
+
+  - id: baseten
+    name: Baseten
+    tier: trial
+    privacy: cloud
+    requires_env: BASETEN_API_KEY
+    shared_quota: true
+    limits:
+      credit_usd: 30.0
+    notes: "$30 credit; pay by compute time."
+    models:
+      - id: baseten/generic
+        display: Baseten (deployed model)
+        litellm_model: openai/baseten-model
+        api_base_env: BASETEN_API_BASE
+        api_key_env: BASETEN_API_KEY
+        context: 128000
+        tps_typical: 40
+        lanes: [smart]
+        order_in_lane: { smart: 24 }
+
+  - id: nebius
+    name: Nebius Token Factory
+    tier: trial
+    privacy: cloud
+    requires_env: NEBIUS_API_KEY
+    shared_quota: true
+    limits:
+      credit_usd: 1.0
+    notes: "$1 trial."
+    models:
+      - id: nebius/llama-3.3-70b
+        display: Nebius Llama 3.3 70B
+        litellm_model: openai/meta-llama/Llama-3.3-70B-Instruct
+        api_base: https://api.tokenfactory.nebius.com/v1
+        api_key_env: NEBIUS_API_KEY
+        context: 131072
+        tps_typical: 50
+        lanes: [smart]
+        order_in_lane: { smart: 25 }
+
+  - id: novita
+    name: Novita
+    tier: trial
+    privacy: cloud
+    requires_env: NOVITA_API_KEY
+    shared_quota: true
+    limits:
+      credit_usd: 0.5
+    notes: "$0.50 for 1 year."
+    models:
+      - id: novita/llama-3.3-70b
+        display: Novita Llama 3.3 70B
+        litellm_model: openai/meta-llama/llama-3.3-70b-instruct
+        api_base: https://api.novita.ai/v3/openai
+        api_key_env: NOVITA_API_KEY
+        context: 131072
+        tps_typical: 45
+        lanes: [smart]
+        order_in_lane: { smart: 26 }
+
+  - id: ai21
+    name: AI21
+    tier: trial
+    privacy: cloud
+    requires_env: AI21_API_KEY
+    shared_quota: true
+    limits:
+      credit_usd: 10.0
+      credit_days: 90
+    notes: "$10 for 3 months. Jamba family."
+    models:
+      - id: ai21/jamba-large
+        display: AI21 Jamba Large
+        litellm_model: ai21/jamba-large
+        context: 256000
+        tps_typical: 40
+        lanes: [smart]
+        order_in_lane: { smart: 27 }
+
+  - id: upstage
+    name: Upstage
+    tier: trial
+    privacy: cloud
+    requires_env: UPSTAGE_API_KEY
+    shared_quota: true
+    limits:
+      credit_usd: 10.0
+      credit_days: 90
+    notes: "$10 for 3 months. Solar Pro/Mini."
+    models:
+      - id: upstage/solar-pro
+        display: Upstage Solar Pro
+        litellm_model: openai/solar-pro
+        api_base: https://api.upstage.ai/v1/solar
+        api_key_env: UPSTAGE_API_KEY
+        context: 32768
+        tps_typical: 50
+        lanes: [smart]
+        order_in_lane: { smart: 28 }
+
+  - id: nlpcloud
+    name: NLP Cloud
+    tier: trial
+    privacy: cloud
+    requires_env: NLPCLOUD_API_KEY
+    shared_quota: true
+    limits:
+      credit_usd: 15.0
+    notes: "$15 credit; phone verify."
+    models:
+      - id: nlpcloud/default
+        display: NLP Cloud open models
+        litellm_model: openai/finetuned-model
+        api_base_env: NLPCLOUD_API_BASE
+        api_key_env: NLPCLOUD_API_KEY
+        context: 32768
+        tps_typical: 30
+        lanes: [smart]
+        order_in_lane: { smart: 29 }
+
+  - id: alibaba
+    name: Alibaba Cloud Model Studio
+    tier: trial
+    privacy: cloud
+    requires_env: DASHSCOPE_API_KEY
+    shared_quota: false
+    limits:
+      tokens_per_model: 1000000
+    notes: "1M free tokens per model (international)."
+    models:
+      - id: alibaba/qwen-plus
+        display: Qwen Plus (Model Studio)
+        litellm_model: dashscope/qwen-plus
+        context: 131072
+        tps_typical: 50
+        tpd: 1000000
+        lanes: [smart, code]
+        order_in_lane: { smart: 30, code: 9 }
+      - id: alibaba/qwen-coder
+        display: Qwen Coder (Model Studio)
+        litellm_model: dashscope/qwen3-coder-plus
+        context: 262144
+        tps_typical: 45
+        tpd: 1000000
+        lanes: [code]
+        order_in_lane: { code: 9 }
+
+  - id: modal
+    name: Modal
+    tier: trial
+    privacy: cloud
+    requires_env: MODAL_TOKEN_ID
+    requires_env_extra: [MODAL_TOKEN_SECRET, MODAL_API_BASE]
+    shared_quota: true
+    limits:
+      credit_usd_month: 5.0
+      credit_usd_month_with_payment: 30.0
+    notes: "$5/mo signup; $30/mo with payment method. Bring your own deployed OpenAI-compatible endpoint."
+    models:
+      - id: modal/openai-compat
+        display: Modal OpenAI-compatible deploy
+        litellm_model: openai/modal-model
+        api_base_env: MODAL_API_BASE
+        api_key_env: MODAL_TOKEN_ID
+        context: 128000
+        tps_typical: 40
+        lanes: [smart]
+        order_in_lane: { smart: 31 }
+
+  - id: inference_net
+    name: Inference.net
+    tier: trial
+    privacy: cloud
+    requires_env: INFERENCE_NET_API_KEY
+    shared_quota: true
+    limits:
+      credit_usd: 1.0
+      credit_usd_survey: 25.0
+    notes: "$1 base; +$25 survey."
+    models:
+      - id: inference/llama-70b
+        display: Inference.net Llama 70B
+        litellm_model: openai/meta-llama/llama-3.3-70b-instruct
+        api_base: https://api.inference.net/v1
+        api_key_env: INFERENCE_NET_API_KEY
+        context: 131072
+        tps_typical: 45
+        lanes: [smart]
+        order_in_lane: { smart: 32 }
+
+  - id: hyperbolic
+    name: Hyperbolic
+    tier: trial
+    privacy: cloud
+    requires_env: HYPERBOLIC_API_KEY
+    shared_quota: true
+    limits:
+      credit_usd: 1.0
+    notes: "$1 credit."
+    models:
+      - id: hyp/deepseek-v3
+        display: Hyperbolic DeepSeek V3 0324
+        litellm_model: openai/deepseek-ai/DeepSeek-V3-0324
+        api_base: https://api.hyperbolic.xyz/v1
+        api_key_env: HYPERBOLIC_API_KEY
+        context: 65536
+        tps_typical: 40
+        lanes: [smart]
+        order_in_lane: { smart: 33 }
+      - id: hyp/llama-3.3-70b
+        display: Hyperbolic Llama 3.3 70B
+        litellm_model: openai/meta-llama/Meta-Llama-3.3-70B-Instruct
+        api_base: https://api.hyperbolic.xyz/v1
+        api_key_env: HYPERBOLIC_API_KEY
+        context: 131072
+        tps_typical: 50
+        lanes: [smart, fast]
+        order_in_lane: { smart: 34, fast: 16 }
+      - id: hyp/deepseek-r1
+        display: Hyperbolic DeepSeek R1
+        litellm_model: openai/deepseek-ai/deepseek-r1-0528
+        api_base: https://api.hyperbolic.xyz/v1
+        api_key_env: HYPERBOLIC_API_KEY
+        context: 65536
+        tps_typical: 30
+        lanes: [smart]
+        order_in_lane: { smart: 35 }
+      - id: hyp/qwen3-coder-480b
+        display: Hyperbolic Qwen3 Coder 480B
+        litellm_model: openai/qwen/qwen3-coder-480b-a35b-instruct
+        api_base: https://api.hyperbolic.xyz/v1
+        api_key_env: HYPERBOLIC_API_KEY
+        context: 262144
+        tps_typical: 25
+        lanes: [code]
+        order_in_lane: { code: 10 }
+
+  - id: sambanova
+    name: SambaNova Cloud
+    tier: trial
+    privacy: cloud
+    requires_env: SAMBANOVA_API_KEY
+    shared_quota: true
+    limits:
+      credit_usd: 5.0
+      credit_days: 90
+    notes: "$5 for 3 months."
+    models:
+      - id: snova/deepseek-v3.2
+        display: SambaNova DeepSeek V3.2
+        litellm_model: sambanova/DeepSeek-V3.2
+        context: 65536
+        tps_typical: 80
+        lanes: [smart]
+        order_in_lane: { smart: 36 }
+      - id: snova/llama-3.3-70b
+        display: SambaNova Llama 3.3 70B
+        litellm_model: sambanova/Meta-Llama-3.3-70B-Instruct
+        context: 131072
+        tps_typical: 100
+        lanes: [fast, smart]
+        order_in_lane: { fast: 17, smart: 37 }
+      - id: snova/gpt-oss-120b
+        display: SambaNova GPT-OSS 120B
+        litellm_model: sambanova/gpt-oss-120b
+        context: 131072
+        tps_typical: 90
+        lanes: [smart, code]
+        order_in_lane: { smart: 38, code: 11 }
+      - id: snova/gemma-4-31b
+        display: SambaNova Gemma 4 31B
+        litellm_model: sambanova/gemma-4-31b-it
+        context: 131072
+        tps_typical: 100
+        lanes: [smart]
+        order_in_lane: { smart: 39 }
+
+  - id: scaleway
+    name: Scaleway Generative APIs
+    tier: trial
+    privacy: cloud
+    requires_env: SCALEWAY_API_KEY
+    shared_quota: true
+    limits:
+      tokens_total: 1000000
+    notes: "1,000,000 free tokens."
+    models:
+      - id: scw/gemma-3-27b
+        display: Scaleway Gemma 3 27B
+        litellm_model: openai/gemma-3-27b-it
+        api_base_env: SCALEWAY_API_BASE
+        api_key_env: SCALEWAY_API_KEY
+        context: 131072
+        tps_typical: 40
+        tpd: 1000000
+        lanes: [smart]
+        order_in_lane: { smart: 40 }
+      - id: scw/llama-3.3-70b
+        display: Scaleway Llama 3.3 70B
+        litellm_model: openai/llama-3.3-70b-instruct
+        api_base_env: SCALEWAY_API_BASE
+        api_key_env: SCALEWAY_API_KEY
+        context: 131072
+        tps_typical: 40
+        lanes: [smart]
+        order_in_lane: { smart: 41 }
+      - id: scw/glm-5.2
+        display: Scaleway GLM-5.2
+        litellm_model: openai/glm-5.2
+        api_base_env: SCALEWAY_API_BASE
+        api_key_env: SCALEWAY_API_KEY
+        context: 131072
+        tps_typical: 35
+        lanes: [smart, code]
+        order_in_lane: { smart: 42, code: 12 }
+      - id: scw/gpt-oss-120b
+        display: Scaleway GPT-OSS 120B
+        litellm_model: openai/gpt-oss-120b
+        api_base_env: SCALEWAY_API_BASE
+        api_key_env: SCALEWAY_API_KEY
+        context: 131072
+        tps_typical: 40
+        lanes: [smart]
+        order_in_lane: { smart: 43 }
+      - id: scw/qwen3-coder-30b
+        display: Scaleway Qwen3 Coder 30B
+        litellm_model: openai/qwen3-coder-30b-a3b-instruct
+        api_base_env: SCALEWAY_API_BASE
+        api_key_env: SCALEWAY_API_KEY
+        context: 262144
+        tps_typical: 40
+        lanes: [code]
+        order_in_lane: { code: 12 }
+      - id: scw/devstral-2
+        display: Scaleway Devstral 2 123B
+        litellm_model: openai/devstral-2-123b-instruct-2512
+        api_base_env: SCALEWAY_API_BASE
+        api_key_env: SCALEWAY_API_KEY
+        context: 131072
+        tps_typical: 30
+        lanes: [code]
+        order_in_lane: { code: 13 }

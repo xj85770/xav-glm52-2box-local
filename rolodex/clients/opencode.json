@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "comment": "Point OpenCode at the local rolodex. Adjust model to lane/local|fast|smart|code.",
+  "provider": {
+    "rolodex": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Rolodex",
+      "options": {
+        "baseURL": "http://127.0.0.1:4000/v1",
+        "apiKey": "sk-rolodex"
+      },
+      "models": {
+        "lane/local": { "name": "lane/local (GLM local)" },
+        "lane/fast": { "name": "lane/fast (Groq/Cerebras/OR)" },
+        "lane/smart": { "name": "lane/smart (Gemini/OR/local)" },
+        "lane/code": { "name": "lane/code (Codestral/Qwen/local)" }
+      }
+    }
+  },
+  "model": "rolodex/lane/smart"
+}

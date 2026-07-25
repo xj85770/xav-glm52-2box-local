@@ -76,6 +76,23 @@ scripts/verify.sh
 The launcher is deliberately paranoid: it gates on the cross-node link, pre-flights free RAM on both
 boxes, runs a smoke decode before the real load, and tears down cleanly (no leaked memory) on any failure.
 
+## Rolodex (full free-API catalog + local lanes)
+
+`rolodex/` is an OpenAI-compatible LiteLLM gateway over **all legitimate free/trial APIs** from
+[free-llm-api-resources](https://github.com/cheahjs/free-llm-api-resources) plus this local GLM stack.
+Swap by **lane** or by **exact model id**. Inventory shows context, typical/observed t/s, limits, and
+tokens/requests left:
+
+```sh
+cd rolodex && cp .env.example .env
+./scripts/inventory.py --write       # state/AGENT_CONTEXT.md for the agent
+./scripts/start.sh                   # http://127.0.0.1:4000/v1
+./scripts/smoke.sh lane/smart        # or: or/qwen3-coder / groq/llama-3.3-70b
+./scripts/test.sh
+```
+
+See [`rolodex/README.md`](rolodex/README.md), [`rolodex/catalog.yaml`](rolodex/catalog.yaml), `rolodex/clients/`.
+
 ## Demo
 
 `demo/` has the tooling used to make real-time proof videos (the on-screen numbers are streamed at true
