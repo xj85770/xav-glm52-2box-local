@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>lanes — agent chat</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>lanes</h1>
+        <p>Local agent dashboard. Backend: <strong>lanes2</strong> free-API + local GLM rolodex.</p>
+      </div>
+      <div class="status" id="status">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">checking lanes2…</span>
+      </div>
+
+      <div class="section-label">Lanes</div>
+      <div class="lane-pills" id="lanePills"></div>
+
+      <div class="section-label">Model / API</div>
+      <div class="model-select-wrap">
+        <select id="modelSelect" aria-label="Model"></select>
+      </div>
+
+      <div class="section-label">Sessions</div>
+      <div class="sessions" id="sessions"></div>
+
+      <div class="sidebar-actions">
+        <button class="primary" id="btnNew">New chat</button>
+        <button class="ghost" id="btnRefresh">Refresh models</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h2 id="chatTitle">New chat</h2>
+          <div class="meta" id="chatMeta">Pick a lane or any individual API id from lanes2</div>
+        </div>
+        <div class="meta" id="readyMeta"></div>
+      </header>
+
+      <section class="chat" id="chat">
+        <div class="empty" id="empty">
+          <h3>Ask the agent</h3>
+          <p>Wired to lanes2. Use a lane for failover, or an exact model id to run one API alone.</p>
+        </div>
+      </section>
+
+      <footer class="composer">
+        <div class="composer-inner">
+          <textarea id="input" placeholder="Message the agent…" rows="2"></textarea>
+          <button class="send" id="btnSend">Send</button>
+        </div>
+        <div class="hint">Enter to send · Shift+Enter for newline · Streaming via lanes2</div>
+      </footer>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -76,6 +76,32 @@ scripts/verify.sh
 The launcher is deliberately paranoid: it gates on the cross-node link, pre-flights free RAM on both
 boxes, runs a smoke decode before the real load, and tears down cleanly (no leaked memory) on any failure.
 
+## lanes + lanes2 (agent chat UI wired to free-API rolodex)
+
+Fully wired stack:
+
+```text
+lanes UI (:3000)  →  lanes2 gateway (:4000)  →  LiteLLM (:4001)  →  free APIs / local GLM
+```
+
+```sh
+# one command — starts lanes2 backend + lanes agent dashboard
+./scripts/start-stack.sh
+# open http://127.0.0.1:3000
+```
+
+- **lanes/** — local agent dashboard chat (lane pills, model picker, streaming)
+- **lanes2/** — free/trial API catalog + lanes failover (`lane/smart`, `or/qwen3-coder`, …)
+
+```sh
+cd lanes2 && cp .env.example .env   # add free-tier keys
+./scripts/start-stack.sh
+cd lanes2 && ./scripts/test.sh
+cd lanes && PYTHONPATH=. python3 -m pytest tests -q
+```
+
+See [`lanes/README.md`](lanes/README.md), [`lanes2/README.md`](lanes2/README.md).
+
 ## Demo
 
 `demo/` has the tooling used to make real-time proof videos (the on-screen numbers are streamed at true

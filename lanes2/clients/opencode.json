@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "comment": "lanes2: use a lane OR any individual model id from GET /v1/models",
+  "provider": {
+    "lanes2": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "lanes2",
+      "options": {
+        "baseURL": "http://127.0.0.1:4000/v1",
+        "apiKey": "sk-lanes2"
+      },
+      "models": {
+        "lanes": { "name": "lanes (list all lane cards)" },
+        "lane/local": { "name": "lane/local" },
+        "lane/fast": { "name": "lane/fast" },
+        "lane/smart": { "name": "lane/smart" },
+        "lane/code": { "name": "lane/code" },
+        "local/ds4": { "name": "local/ds4 (independent)" },
+        "local/llama": { "name": "local/llama (independent)" },
+        "or/qwen3-coder": { "name": "or/qwen3-coder (independent)" },
+        "groq/llama-3.3-70b": { "name": "groq/llama-3.3-70b (independent)" },
+        "gemini/2.5-flash": { "name": "gemini/2.5-flash (independent)" }
+      }
+    }
+  },
+  "model": "lanes2/lane/smart"
+}
