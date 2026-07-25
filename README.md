@@ -76,13 +76,13 @@ scripts/verify.sh
 The launcher is deliberately paranoid: it gates on the cross-node link, pre-flights free RAM on both
 boxes, runs a smoke decode before the real load, and tears down cleanly (no leaked memory) on any failure.
 
-## Rolodex (individual model APIs + lanes)
+## lanes2 (individual model APIs + lanes)
 
-`rolodex/` exposes **every free/trial model as its own API id** and also mounts them into failover
+`lanes2/` exposes **every free/trial model as its own API id** and also mounts them into failover
 **lanes**. `GET /v1/models` lists both. Call `or/qwen3-coder` alone, or `lane/code` to auto-swap.
 
 ```sh
-cd rolodex && cp .env.example .env
+cd lanes2 && cp .env.example .env
 ./scripts/start.sh                   # gateway :4000 (lists all APIs + lanes)
 ./scripts/smoke.sh lanes             # dump populated rolodexes
 ./scripts/smoke.sh groq/llama-3.3-70b  # run one model independently
@@ -90,7 +90,7 @@ cd rolodex && cp .env.example .env
 ./scripts/test.sh
 ```
 
-See [`rolodex/README.md`](rolodex/README.md), [`rolodex/CATALOG.md`](rolodex/CATALOG.md).
+See [`lanes2/README.md`](lanes2/README.md), [`lanes2/CATALOG.md`](lanes2/CATALOG.md).
 
 ## Demo
 

@@ -1,0 +1,15 @@
+# Hermes Agent → lanes2 gateway
+# hermes model → Custom Endpoint, then paste:
+
+model:
+  provider: custom
+  base_url: http://127.0.0.1:4000/v1
+  model: lane/smart          # or any individual id from GET /v1/models
+  api_key: sk-lanes2
+
+# Examples:
+#   model: lanes                 → dump all lane cards
+#   model: lane/smart            → failover across ready smart cards
+#   model: or/qwen3-coder        → run that model alone
+#   model: groq/llama-3.3-70b    → run Groq 70B alone
+#   model: local/ds4             → local GLM alone
