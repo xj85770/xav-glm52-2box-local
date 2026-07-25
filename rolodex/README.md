@@ -56,7 +56,8 @@ cd rolodex
 cp .env.example .env          # paste keys — each key unlocks that provider’s model APIs
 python3 -m pip install -r requirements.txt
 ./scripts/start.sh            # gateway :4000  (LiteLLM :4001)
-./scripts/test.sh
+./scripts/test.sh             # unit + failover (38 tests)
+./scripts/verify_live.sh      # against a running gateway
 ```
 
 Auth: `Authorization: Bearer sk-rolodex`.
