@@ -30,8 +30,9 @@ providers:
         rpd: null
         tpm: null
         tpd: null
-        lanes: [local, smart, code]
-        order_in_lane: { local: 1, smart: 4, code: 4 }
+        # Last-resort card on every lane so typing any lane always resolves.
+        lanes: [local, fast, smart, code]
+        order_in_lane: { local: 1, fast: 99, smart: 99, code: 99 }
       - id: local/llama
         display: GLM-5.2 via llama.cpp RPC
         litellm_model: openai/LOCAL_MODEL_ID
@@ -45,8 +46,8 @@ providers:
         rpd: null
         tpm: null
         tpd: null
-        lanes: [local]
-        order_in_lane: { local: 2 }
+        lanes: [local, fast, smart, code]
+        order_in_lane: { local: 2, fast: 100, smart: 100, code: 100 }
 
   - id: openrouter
     name: OpenRouter

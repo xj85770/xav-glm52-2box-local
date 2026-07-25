@@ -11,12 +11,13 @@ from rolodex_lib.runtime import build_runtime_config, summarize_runtime, write_r
 def test_local_only_runtime(local_only_env):
     cfg = build_runtime_config(environ=local_only_env)
     summary = summarize_runtime(cfg)
-    assert "lane/local" in summary["lanes"]
-    assert any(mid.startswith("local/") for mid in summary["lanes"]["lane/local"])
-    # Direct model ids also present
+    # All four lanes present (local fallbacks on every lane)
+    for lane in LANE_NAMES:
+        assert lane in summary["lanes"], lane
+        assert any(mid.startswith("local/") for mid in summary["lanes"][lane])
+    # Direct/independent model ids also present
     assert "local/ds4" in summary["direct_models"]
-    # fast should be empty without cloud keys
-    assert "lane/fast" not in summary["lanes"]
+    assert "local/llama" in summary["direct_models"]
 
 
 def test_full_keys_enable_major_lanes(local_only_env):

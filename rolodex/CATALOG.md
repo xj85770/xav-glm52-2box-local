@@ -1,12 +1,12 @@
-# Rolodex catalog (approvable limits + context)
+# Rolodex catalog — individual APIs + lane membership
 
 Swap by **model id** (exact) or by **lane** (`lane/local|fast|smart|code`).
 Limits from [free-llm-api-resources](https://github.com/cheahjs/free-llm-api-resources). `tokens_left_*` / `requests_left_*` are local budget remaining vs published free caps (not live provider dashboards).
 
 | ready | id | display | provider | tier | ctx | t/s typ | t/s obs | rpm | rpd | tpm | tpd | req left/day | tok left/day | lanes |
 |---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| YES | `local/ds4` | GLM-5.2 via ds4-server | local | local | 131072 | 3.0 |  |  |  |  |  |  |  | local,smart,code |
-| YES | `local/llama` | GLM-5.2 via llama.cpp RPC | local | local | 131072 | 18.5 |  |  |  |  |  |  |  | local |
+| YES | `local/ds4` | GLM-5.2 via ds4-server | local | local | 131072 | 3.0 |  |  |  |  |  |  |  | local,fast,smart,code |
+| YES | `local/llama` | GLM-5.2 via llama.cpp RPC | local | local | 131072 | 18.5 |  |  |  |  |  |  |  | local,fast,smart,code |
 | no-key | `cerebras/gpt-oss-120b` | Cerebras GPT-OSS 120B | cerebras | free | 65536 | 1000 |  | 30 | 14400 | 60000 | 1000000 | 14400 | 1000000 | fast,smart,code |
 | no-key | `cerebras/llama3.1-8b` | Cerebras Llama 3.1 8B | cerebras | free | 8192 | 1800 |  | 30 | 14400 | 60000 | 1000000 | 14400 | 1000000 | fast |
 | no-key | `cf/glm-5.2` | CF GLM-5.2 | cloudflare | free | 131072 | 25 |  |  |  |  |  |  |  | smart,local |

@@ -21,7 +21,10 @@ def test_describe_lanes_counts(local_only_env):
         if e["model_name"] in counts:
             counts[e["model_name"]] += 1
     assert counts["lane/local"] >= 1
-    assert counts["lane/fast"] == 0
+    # local fallbacks keep every lane non-empty
+    assert counts["lane/fast"] >= 1
+    assert counts["lane/smart"] >= 1
+    assert counts["lane/code"] >= 1
 
 
 def test_all_aliases_map_to_known_lanes():

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke.sh — hit /v1/models and one chat completion against a running rolodex.
+# smoke.sh — list models/lanes, then hit one chat completion.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -12,19 +12,30 @@ fi
 
 : "${ROLODEX_PORT:=4000}"
 : "${ROLODEX_MASTER_KEY:=sk-rolodex}"
-LANE="${1:-lane/local}"
+LANE="${1:-lanes}"
 BASE="http://127.0.0.1:${ROLODEX_PORT}"
 
-echo "== GET ${BASE}/v1/models =="
-curl -fsS "${BASE}/v1/models" -H "Authorization: Bearer ${ROLODEX_MASTER_KEY}" | python3 -m json.tool | head -80
+echo "== GET ${BASE}/v1/lanes =="
+curl -fsS "${BASE}/v1/lanes" -H "Authorization: Bearer ${ROLODEX_MASTER_KEY}" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); 
+[print(f\"{k}: {v['ready_count']}/{v['card_count']} ready → {', '.join(v['ready_ids'][:6])}{'…' if len(v['ready_ids'])>6 else ''}\") for k,v in d['lanes'].items()]"
 
 echo
-echo "== POST chat lane=${LANE} =="
+echo "== GET ${BASE}/v1/models (lanes + individual APIs) =="
+curl -fsS "${BASE}/v1/models" -H "Authorization: Bearer ${ROLODEX_MASTER_KEY}" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); 
+kinds={};
+[kinds.__setitem__(x.get('kind','?'), kinds.get(x.get('kind','?'),0)+1) for x in d['data']];
+print('counts', kinds);
+print('sample ids:', ', '.join(x['id'] for x in d['data'][:12]), '…')"
+
+echo
+echo "== POST chat model=${LANE} =="
 curl -fsS "${BASE}/v1/chat/completions" \
   -H "Authorization: Bearer ${ROLODEX_MASTER_KEY}" \
   -H "Content-Type: application/json" \
-  -d "$(python3 -c "import json,sys; print(json.dumps({'model':sys.argv[1],'messages':[{'role':'user','content':'Reply with exactly: pong'}],'max_tokens':32,'temperature':0}))" "$LANE")" \
-  | python3 -m json.tool
+  -d "$(python3 -c "import json,sys; print(json.dumps({'model':sys.argv[1],'messages':[{'role':'user','content':'Reply with exactly: pong'}],'max_tokens':64,'temperature':0}))" "$LANE")" \
+  | python3 -m json.tool | head -80
 
 echo
 echo "SMOKE OK"

@@ -76,22 +76,21 @@ scripts/verify.sh
 The launcher is deliberately paranoid: it gates on the cross-node link, pre-flights free RAM on both
 boxes, runs a smoke decode before the real load, and tears down cleanly (no leaked memory) on any failure.
 
-## Rolodex (full free-API catalog + local lanes)
+## Rolodex (individual model APIs + lanes)
 
-`rolodex/` is an OpenAI-compatible LiteLLM gateway over **all legitimate free/trial APIs** from
-[free-llm-api-resources](https://github.com/cheahjs/free-llm-api-resources) plus this local GLM stack.
-Swap by **lane** or by **exact model id**. Inventory shows context, typical/observed t/s, limits, and
-tokens/requests left:
+`rolodex/` exposes **every free/trial model as its own API id** and also mounts them into failover
+**lanes**. `GET /v1/models` lists both. Call `or/qwen3-coder` alone, or `lane/code` to auto-swap.
 
 ```sh
 cd rolodex && cp .env.example .env
-./scripts/inventory.py --write       # state/AGENT_CONTEXT.md for the agent
-./scripts/start.sh                   # http://127.0.0.1:4000/v1
-./scripts/smoke.sh lane/smart        # or: or/qwen3-coder / groq/llama-3.3-70b
+./scripts/start.sh                   # gateway :4000 (lists all APIs + lanes)
+./scripts/smoke.sh lanes             # dump populated rolodexes
+./scripts/smoke.sh groq/llama-3.3-70b  # run one model independently
+./scripts/smoke.sh lane/smart        # run a lane
 ./scripts/test.sh
 ```
 
-See [`rolodex/README.md`](rolodex/README.md), [`rolodex/catalog.yaml`](rolodex/catalog.yaml), `rolodex/clients/`.
+See [`rolodex/README.md`](rolodex/README.md), [`rolodex/CATALOG.md`](rolodex/CATALOG.md).
 
 ## Demo
 

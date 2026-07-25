@@ -1,80 +1,84 @@
-# Rolodex — full free-API + local lane gateway
+# Rolodex — individual model APIs + lane failover
 
-One OpenAI-compatible endpoint. Behind it: **every legitimate free/trial card** from
-[cheahjs/free-llm-api-resources](https://github.com/cheahjs/free-llm-api-resources), plus your local GLM.
+One OpenAI-compatible gateway. **Every catalog model has its own API id** you can call alone.
+The same models are also mounted into **lanes** for automatic failover.
 
 ```
-Hermes / OpenWorker / OpenCode / curl
+You / Hermes / OpenWorker / OpenCode
         ↓  http://127.0.0.1:4000/v1
-     Rolodex (LiteLLM)
-        ↓  swap by lane OR exact model id
-  lane/local|fast|smart|code
-  or/llama-3.3-70b · groq/llama-3.3-70b · gemini/2.5-flash · local/ds4 · …
+   Rolodex gateway  (lists everything)
+        ↓
+   LiteLLM upstream :4001
+        ↓
+   independent ids          lanes (ordered failover)
+   or/qwen3-coder      →    lane/code
+   groq/llama-3.3-70b  →    lane/fast + lane/smart
+   local/ds4           →    all lanes (fallback)
+   gemini/2.5-flash    →    lane/smart
+   …
 ```
 
-## What you can see before swapping
+## Two ways to call
+
+| You type | What happens |
+|----------|----------------|
+| `model=or/qwen3-coder` | Runs **only** that model (independent API) |
+| `model=groq/llama-3.3-70b` | Runs **only** Groq 70B |
+| `model=lane/smart` | Failover across smart’s **ready** cards |
+| `model=smart` | Same (alias) |
+| `model=lanes` | Returns the full lane→rolodex dump (no LLM call) |
+
+## List APIs
 
 ```bash
-./scripts/inventory.py              # full table: ctx, t/s, rpm/rpd/tpm, tokens left
-./scripts/inventory.py --available  # only cards whose keys are configured
-./scripts/inventory.py --lane code
-./scripts/inventory.py --write      # refreshes state/AGENT_CONTEXT.md (+ .json)
+# Every lane + every individual model id (ready flag, ctx, t/s, tokens left)
+curl -s http://127.0.0.1:4000/v1/models -H "Authorization: Bearer sk-rolodex" | jq .
+
+# Full rolodex per lane (all cards, including missing-key)
+curl -s http://127.0.0.1:4000/v1/lanes -H "Authorization: Bearer sk-rolodex" | jq .
+
+curl -s http://127.0.0.1:4000/v1/lanes/code -H "Authorization: Bearer sk-rolodex" | jq .
 ```
 
-Each row includes:
+Or:
 
-| field | meaning |
-|-------|---------|
-| `id` | exact model name to send in `model:` |
-| `context` | context window (tokens) |
-| `tps_typical` | expected decode speed |
-| `tps_observed` | last measured t/s from your traffic |
-| `rpm/rpd/tpm/tpd` | published free limits |
-| `req left/day` / `tok left/day` | **remaining** vs those caps (local tracker) |
-
-Put `state/AGENT_CONTEXT.md` in the agent’s context so it can pick an approved model.
+```bash
+./scripts/inventory.py
+./scripts/smoke.sh lanes
+./scripts/smoke.sh lane/smart
+./scripts/smoke.sh groq/llama-3.3-70b
+```
 
 ## Quickstart
 
 ```bash
 cd rolodex
-cp .env.example .env          # paste any free-tier keys you have
+cp .env.example .env          # paste keys — each key unlocks that provider’s model APIs
 python3 -m pip install -r requirements.txt
-./scripts/start.sh            # builds runtime + inventory, serves :4000
-```
-
-```bash
-./scripts/smoke.sh lane/smart
-./scripts/smoke.sh or/qwen3-coder
-./scripts/smoke.sh groq/llama-3.3-70b
+./scripts/start.sh            # gateway :4000  (LiteLLM :4001)
 ./scripts/test.sh
 ```
 
-Auth: `Authorization: Bearer sk-rolodex` (`ROLODEX_MASTER_KEY`).
+Auth: `Authorization: Bearer sk-rolodex`.
 
 ## Lanes
 
-| Lane | Intent | Typical order |
-|------|--------|----------------|
-| `lane/local` | Private GLM | ds4 → llama.cpp → CF GLM |
-| `lane/fast` | Burst / tool loops | Groq → Gemini lite → Cerebras → OR small |
-| `lane/smart` | Default agent brain | Gemini → OR big → Groq → local |
-| `lane/code` | Coding | Codestral → OR qwen-coder → Groq → local |
+| Lane | Intent |
+|------|--------|
+| `lane/local` | Private GLM |
+| `lane/fast` | Burst / tool loops |
+| `lane/smart` | Default agent brain |
+| `lane/code` | Coding |
 
-Aliases: `local`, `fast`, `smart`, `code`.
+Local GLM is on **every** lane as last-resort fallback, so typing any lane always resolves.
 
 ## Catalog
 
-- Source of truth: [`catalog.yaml`](catalog.yaml) (providers, models, context, limits, t/s, lanes)
-- Missing keys ⇒ card omitted from runtime (safe)
-- `ROLODEX_TIERS=local,free` to skip trial-credit providers
-- Usage written to `state/usage.json` via LiteLLM callback
+- [`catalog.yaml`](catalog.yaml) — 82 models / 27 providers with context, limits, t/s, lane membership
+- [`CATALOG.md`](CATALOG.md) — approvable snapshot
+- Missing keys ⇒ model still **listed**, but independent calls return `model_not_ready` until you add the key; lanes skip unready cards
 
 ## Clients
 
-See `clients/` for Hermes / OpenCode / OpenWorker snippets. Point `base_url` at
-`http://127.0.0.1:4000/v1` and set `model` to a lane or exact id from inventory.
-
-## Don’t abuse free tiers
-
-Shared quotas (OpenRouter, Cohere, …) drain across models. Prefer `lane/local` for private work.
+Point Hermes / OpenCode / OpenWorker at `http://127.0.0.1:4000/v1` — see `clients/`.
+Pick either a **lane** or an **individual model id** from `/v1/models`.

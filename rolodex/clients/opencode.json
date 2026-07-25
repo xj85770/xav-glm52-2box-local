@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "comment": "Point OpenCode at the local rolodex. Adjust model to lane/local|fast|smart|code.",
+  "comment": "Rolodex: use a lane OR any individual model id from GET /v1/models",
   "provider": {
     "rolodex": {
       "npm": "@ai-sdk/openai-compatible",
@@ -10,10 +10,16 @@
         "apiKey": "sk-rolodex"
       },
       "models": {
-        "lane/local": { "name": "lane/local (GLM local)" },
-        "lane/fast": { "name": "lane/fast (Groq/Cerebras/OR)" },
-        "lane/smart": { "name": "lane/smart (Gemini/OR/local)" },
-        "lane/code": { "name": "lane/code (Codestral/Qwen/local)" }
+        "lanes": { "name": "lanes (list all rolodexes)" },
+        "lane/local": { "name": "lane/local" },
+        "lane/fast": { "name": "lane/fast" },
+        "lane/smart": { "name": "lane/smart" },
+        "lane/code": { "name": "lane/code" },
+        "local/ds4": { "name": "local/ds4 (independent)" },
+        "local/llama": { "name": "local/llama (independent)" },
+        "or/qwen3-coder": { "name": "or/qwen3-coder (independent)" },
+        "groq/llama-3.3-70b": { "name": "groq/llama-3.3-70b (independent)" },
+        "gemini/2.5-flash": { "name": "gemini/2.5-flash (independent)" }
       }
     }
   },

@@ -2,6 +2,7 @@
 
 from .catalog import iter_models, load_catalog
 from .inventory import build_inventory, render_markdown, write_agent_context
+from .lane_index import build_lane_rolodex
 from .lanes import LANE_ALIASES, LANE_NAMES, describe_lanes
 from .runtime import build_runtime_config, write_runtime_config
 
@@ -9,6 +10,7 @@ __all__ = [
     "LANE_ALIASES",
     "LANE_NAMES",
     "build_inventory",
+    "build_lane_rolodex",
     "build_runtime_config",
     "describe_lanes",
     "iter_models",

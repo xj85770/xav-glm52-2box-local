@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import os
 from pathlib import Path
 from typing import Any
@@ -19,6 +18,7 @@ DEFAULTS = {
     "LOCAL_MODEL_ID": "glm-5.2",
     "ROLODEX_MASTER_KEY": "sk-rolodex",
     "ROLODEX_PORT": "4000",
+    "ROLODEX_UPSTREAM_PORT": "4001",
     "VERCEL_AI_GATEWAY_BASE": "https://ai-gateway.vercel.sh/v1",
     "OPENCODE_ZEN_BASE": "https://opencode.ai/zen/v1",
     "SCALEWAY_API_BASE": "https://api.scaleway.ai/v1",
@@ -52,19 +52,15 @@ def model_available(model: dict[str, Any], environ: dict[str, str] | None = None
     if req and not raw_env(str(req), environ):
         return False
     for extra in model.get("provider_requires_env_extra") or []:
-        # MODAL_TOKEN_SECRET etc. — require if listed
+        if str(extra).endswith("_BASE") and env_value(str(extra), environ):
+            continue
         if not raw_env(str(extra), environ) and str(extra) not in DEFAULTS:
-            # allow api_base defaults
-            if str(extra).endswith("_BASE") and env_value(str(extra), environ):
-                continue
-            if not raw_env(str(extra), environ):
-                return False
+            return False
     key_env = model.get("api_key_env")
     if key_env and key_env != "LOCAL_API_KEY" and not raw_env(str(key_env), environ):
         return False
     base_env = model.get("api_base_env")
     if base_env and base_env not in DEFAULTS and not raw_env(str(base_env), environ):
-        # local bases have defaults; custom bases must be set
         if not str(base_env).startswith("LOCAL_"):
             return False
     return True
@@ -77,7 +73,11 @@ def _resolve_litellm_model(model: dict[str, Any], environ: dict[str, str] | None
 
 
 def _card_entry(model: dict[str, Any], *, lane: str | None, environ: dict[str, str] | None) -> dict[str, Any]:
-    """Build one LiteLLM model_list entry. lane=None → direct model id card."""
+    """Build one LiteLLM model_list entry.
+
+    lane=None → independent model API id (run alone).
+    lane=lane/smart → member of that lane's failover rolodex.
+    """
     short_lane = lane.split("/", 1)[1] if lane and lane.startswith("lane/") else lane
     params: dict[str, Any] = {
         "model": _resolve_litellm_model(model, environ),
@@ -98,10 +98,11 @@ def _card_entry(model: dict[str, Any], *, lane: str | None, environ: dict[str, s
     if model.get("tpm") is not None:
         params["tpm"] = int(model["tpm"])
 
-    order = 50
     if lane and short_lane:
-        order = int((model.get("order_in_lane") or {}).get(short_lane, 50))
-    params["order"] = order
+        params["order"] = int((model.get("order_in_lane") or {}).get(short_lane, 50))
+    else:
+        # Independent single-model deployment — no lane ordering
+        params["order"] = 1
 
     if model.get("tier") == "local":
         params["timeout"] = 600
@@ -113,6 +114,7 @@ def _card_entry(model: dict[str, Any], *, lane: str | None, environ: dict[str, s
         "provider": model.get("provider_id"),
         "tier": model.get("tier"),
         "lane": short_lane,
+        "independent": lane is None,
         "context": model.get("context"),
         "tps_typical": model.get("tps_typical"),
         "rpm": model.get("rpm"),
@@ -152,6 +154,11 @@ def build_runtime_config(
     *,
     include_direct_models: bool = True,
 ) -> dict[str, Any]:
+    """Each ready model is registered twice when in a lane:
+
+    1. Independent API id  — ``model: or/qwen3-coder`` runs only that card
+    2. Lane membership     — ``model: lane/code`` may pick it via ordered failover
+    """
     cat = catalog if catalog is not None else load_catalog()
     allowed_lanes = _allowed_lanes(environ)
     allowed_tiers = _allowed_tiers(environ) or {"local", "free", "trial"}
@@ -166,11 +173,12 @@ def build_runtime_config(
         if not model_available(model, environ):
             continue
 
-        # Direct callable model id (for explicit swap)
+        # 1) Independent callable model API
         if include_direct_models:
             model_list.append(_card_entry(model, lane=None, environ=environ))
             present_models.add(model["id"])
 
+        # 2) Also mount onto each of its lanes
         for short in model.get("lanes") or []:
             lane = f"lane/{short}"
             if lane not in LANE_NAMES:
@@ -180,8 +188,15 @@ def build_runtime_config(
             model_list.append(_card_entry(model, lane=lane, environ=environ))
             present_lanes.add(lane)
 
+    # Guarantee all four lanes exist (local fallbacks are in every lane in catalog)
+    for lane in LANE_NAMES:
+        if allowed_lanes is not None and lane not in allowed_lanes:
+            continue
+        if lane not in present_lanes:
+            # Should not happen if local cards are in every lane; skip quietly
+            continue
+
     aliases = {a: t for a, t in LANE_ALIASES.items() if t in present_lanes}
-    # Also alias bare model ids already present — no-op
     for mid in present_models:
         aliases[mid] = mid
 
@@ -196,6 +211,7 @@ def build_runtime_config(
             "callbacks": ["rolodex_lib.callbacks.proxy_handler_instance"],
         },
         "router_settings": {
+            # Prefer lower `order` within a lane (failover), not random shuffle.
             "routing_strategy": "simple-shuffle",
             "num_retries": 1,
             "timeout": 120,
@@ -243,22 +259,18 @@ def summarize_runtime(cfg: dict[str, Any]) -> dict[str, Any]:
     return {
         "lanes": {k: v for k, v in lanes.items() if v},
         "direct_models": sorted(set(directs)),
+        "independent_count": len(set(directs)),
         "total_cards": len(cfg.get("model_list", [])),
         "aliases": (cfg.get("router_settings") or {}).get("model_group_alias") or {},
     }
 
 
-# Back-compat for older tests
 def load_base_config(path: Path | None = None) -> dict[str, Any]:
-    """Deprecated: returns a runtime-shaped config from catalog (all cards, no env filter)."""
-    # Preserve enough for tests that still import this — prefer catalog.
     return build_runtime_config(environ={k: v for k, v in DEFAULTS.items()}, include_direct_models=True)
 
 
 def card_available(entry: dict[str, Any], environ: dict[str, str] | None = None) -> bool:
-    """Back-compat helper used by older tests."""
     info = entry.get("model_info") or {}
-    # Reconstruct minimal model dict
     req = info.get("requires_env")
     fake = {
         "tier": info.get("tier") or ("local" if (info.get("lane") == "local") else "free"),
