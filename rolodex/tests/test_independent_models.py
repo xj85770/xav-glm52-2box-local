@@ -36,3 +36,20 @@ def test_all_four_lanes_always_present_with_local_fallback(local_only_env):
     for lane in ("lane/local", "lane/fast", "lane/smart", "lane/code"):
         assert lane in summary["lanes"], lane
         assert any(x.startswith("local/") for x in summary["lanes"][lane])
+
+
+def test_litellm_model_info_tier_is_free_or_paid_or_omitted(local_only_env):
+    """LiteLLM ModelInfo.tier only accepts free|paid — local/trial must not leak raw."""
+    env = dict(local_only_env)
+    env["HYPERBOLIC_API_KEY"] = "hy"
+    env["GROQ_API_KEY"] = "gq"
+    cfg = build_runtime_config(environ=env)
+    for entry in cfg["model_list"]:
+        info = entry["model_info"]
+        assert "rolodex_tier" in info
+        if "tier" in info:
+            assert info["tier"] in ("free", "paid"), info
+        if info["rolodex_tier"] == "local":
+            assert "tier" not in info
+        if info["rolodex_tier"] == "trial":
+            assert info.get("tier") == "paid"

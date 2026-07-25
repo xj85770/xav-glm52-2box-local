@@ -108,11 +108,14 @@ def _card_entry(model: dict[str, Any], *, lane: str | None, environ: dict[str, s
         params["timeout"] = 600
 
     model_name = lane if lane else model["id"]
-    model_info = {
+    # LiteLLM ModelInfo.tier only allows "free"|"paid". Keep our catalog tier separately.
+    catalog_tier = model.get("tier") or "free"
+    litellm_tier = {"free": "free", "trial": "paid", "local": None}.get(catalog_tier)
+    model_info: dict[str, Any] = {
         "id": model["id"],
         "display": model.get("display"),
         "provider": model.get("provider_id"),
-        "tier": model.get("tier"),
+        "rolodex_tier": catalog_tier,
         "lane": short_lane,
         "independent": lane is None,
         "context": model.get("context"),
@@ -123,6 +126,8 @@ def _card_entry(model: dict[str, Any], *, lane: str | None, environ: dict[str, s
         "tpd": model.get("tpd"),
         "mode": "chat",
     }
+    if litellm_tier is not None:
+        model_info["tier"] = litellm_tier
     if model.get("provider_requires_env"):
         model_info["requires_env"] = model.get("provider_requires_env")
     return {
@@ -272,12 +277,13 @@ def load_base_config(path: Path | None = None) -> dict[str, Any]:
 def card_available(entry: dict[str, Any], environ: dict[str, str] | None = None) -> bool:
     info = entry.get("model_info") or {}
     req = info.get("requires_env")
+    catalog_tier = info.get("rolodex_tier") or info.get("tier") or "free"
     fake = {
-        "tier": info.get("tier") or ("local" if (info.get("lane") == "local") else "free"),
+        "tier": catalog_tier,
         "provider_requires_env": req,
         "api_key_env": req,
         "provider_requires_env_extra": [],
     }
-    if fake["tier"] == "local" or (info.get("id") or "").startswith("local/"):
+    if catalog_tier == "local" or (info.get("id") or "").startswith("local/"):
         fake["tier"] = "local"
     return model_available(fake, environ)

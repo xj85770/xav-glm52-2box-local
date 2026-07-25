@@ -16,15 +16,15 @@ if [[ -f "$ROOT/.env" ]]; then
   set +a
 fi
 
-: "${ROLODEX_PORT:=4000}"
-: "${ROLODEX_UPSTREAM_PORT:=4001}"
-: "${ROLODEX_MASTER_KEY:=sk-rolodex}"
-: "${LOCAL_DS4_BASE:=http://127.0.0.1:8000/v1}"
-: "${LOCAL_LLAMA_BASE:=http://127.0.0.1:8080/v1}"
-: "${LOCAL_API_KEY:=local}"
-: "${LOCAL_MODEL_ID:=glm-5.2}"
+# Defaults — must be exported so LiteLLM child resolves os.environ/* refs.
+export ROLODEX_PORT="${ROLODEX_PORT:-4000}"
+export ROLODEX_UPSTREAM_PORT="${ROLODEX_UPSTREAM_PORT:-4001}"
+export ROLODEX_MASTER_KEY="${ROLODEX_MASTER_KEY:-sk-rolodex}"
 export ROLODEX_UPSTREAM="http://127.0.0.1:${ROLODEX_UPSTREAM_PORT}"
-export ROLODEX_MASTER_KEY ROLODEX_PORT
+export LOCAL_DS4_BASE="${LOCAL_DS4_BASE:-http://127.0.0.1:8000/v1}"
+export LOCAL_LLAMA_BASE="${LOCAL_LLAMA_BASE:-http://127.0.0.1:8080/v1}"
+export LOCAL_API_KEY="${LOCAL_API_KEY:-local}"
+export LOCAL_MODEL_ID="${LOCAL_MODEL_ID:-glm-5.2}"
 
 python3 "$ROOT/scripts/build_runtime.py"
 python3 "$ROOT/scripts/inventory.py" --write >/dev/null
@@ -47,15 +47,24 @@ echo "Starting LiteLLM upstream on :${ROLODEX_UPSTREAM_PORT} ..."
 litellm --config "$ROOT/config.runtime.yaml" --port "$ROLODEX_UPSTREAM_PORT" --host 127.0.0.1 &
 LITELLM_PID=$!
 
-# Wait for upstream health
-for _ in $(seq 1 50); do
-  if curl -fsS "http://127.0.0.1:${ROLODEX_UPSTREAM_PORT}/health" >/dev/null 2>&1 \
-     || curl -fsS "http://127.0.0.1:${ROLODEX_UPSTREAM_PORT}/v1/models" \
-          -H "Authorization: Bearer ${ROLODEX_MASTER_KEY}" >/dev/null 2>&1; then
+for _ in $(seq 1 60); do
+  if curl -fsS "http://127.0.0.1:${ROLODEX_UPSTREAM_PORT}/v1/models" \
+        -H "Authorization: Bearer ${ROLODEX_MASTER_KEY}" >/dev/null 2>&1; then
     break
   fi
-  sleep 0.2
+  if ! kill -0 "$LITELLM_PID" 2>/dev/null; then
+    echo "LiteLLM exited early. Last log lines:"
+    wait "$LITELLM_PID" || true
+    exit 1
+  fi
+  sleep 0.25
 done
+
+if ! curl -fsS "http://127.0.0.1:${ROLODEX_UPSTREAM_PORT}/v1/models" \
+      -H "Authorization: Bearer ${ROLODEX_MASTER_KEY}" >/dev/null 2>&1; then
+  echo "LiteLLM did not become ready on :${ROLODEX_UPSTREAM_PORT}"
+  exit 1
+fi
 
 echo "Rolodex gateway on http://127.0.0.1:${ROLODEX_PORT}/v1"
 echo "Auth: Authorization: Bearer ${ROLODEX_MASTER_KEY}"

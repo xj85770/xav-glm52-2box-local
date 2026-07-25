@@ -12,8 +12,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from .inventory import build_inventory
 from .lane_index import build_lane_rolodex, render_lanes_markdown, resolve_model_target
 from .lanes import LANE_NAMES
-from .runtime import DEFAULTS, env_value, model_available, raw_env
 from .catalog import iter_models, load_catalog
+from .runtime import DEFAULTS, env_value, model_available
 
 
 def create_app() -> FastAPI:
